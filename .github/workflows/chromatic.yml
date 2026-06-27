@@ -27,7 +27,7 @@ jobs:
       - run: npm ci
 
       - name: Publish to Chromatic
-        uses: chromaui/action@v17
+        uses: chromaui/action@c94bb8b84a1c52d6875af0315a56aed2e41fa1e6 # v17
         with:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           exitZeroOnChanges: true   # don't fail CI; require review in Chromatic UI

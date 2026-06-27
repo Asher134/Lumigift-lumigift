@@ -62,3 +62,19 @@ variable "private_subnet_cidrs" {
   description = "CIDR ranges of private subnets — used to restrict bastion egress"
   type        = list(string)
 }
+
+variable "backup_region" {
+  description = "Secondary AWS region for cross-region S3 backup replication (e.g. us-west-2)"
+  type        = string
+  default     = "us-west-2"
+}
+
+variable "ops_alert_email" {
+  description = "Email address for CloudWatch backup-failure alerts"
+  type        = string
+}
+
+variable "github_oidc_provider_arn" {
+  description = "ARN of the GitHub Actions OIDC provider"
+  type        = string
+}
