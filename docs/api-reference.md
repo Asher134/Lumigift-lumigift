@@ -44,13 +44,43 @@ Endpoints that mutate state also require a **CSRF token** in the `x-csrf-token` 
 
 ---
 
+## Rate Limits
+
+Rate limiting is enforced on a per-endpoint basis using Redis sliding-window counters. When a limit is exceeded the API returns **429 Too Many Requests**.
+
+### Response headers (all rate-limited endpoints)
+
+| Header | Description |
+|---|---|
+| `X-RateLimit-Limit` | Maximum requests allowed in the current window |
+| `X-RateLimit-Remaining` | Requests remaining in the current window |
+| `X-RateLimit-Reset` | Unix timestamp (seconds) when the window resets |
+| `Retry-After` | Seconds to wait before retrying (only on 429 responses) |
+
+### 429 response body
+
+```json
+{ "success": false, "error": "Too many requests." }
+```
+
+### Limits per endpoint
+
+| Endpoint | Scope | Limit | Window |
+|---|---|---|---|
+| `POST /api/v1/auth/send-otp` | Per phone number | 3 requests | 10 minutes |
+| `POST /api/v1/auth/send-otp` | Per IP address | 10 requests | 1 minute |
+| `GET /api/v1/admin/*` | Per admin user | 60 requests | 1 minute |
+| `POST /api/v1/admin/gifts/:id/restore` (bulk) | Per admin user | 10 requests | 1 minute |
+
+---
+
 ## Auth
 
 ### `POST /api/v1/auth/send-otp`
 
 Send a one-time password via SMS.
 
-**Rate limits:** 3 requests per phone per 10 min; 10 per IP per hour.
+**Rate limits:** 3 requests per phone per 10 min; 10 per IP per 1 min.
 
 **Request body**
 
@@ -58,13 +88,22 @@ Send a one-time password via SMS.
 |-------|--------|----------|----------------------------------------------|
 | phone | string | ✓        | Phone number (any format; normalised to E.164) |
 
+**Response headers**
+
+| Header | Description |
+|---|---|
+| `X-RateLimit-Limit` | 3 (per-phone limit) |
+| `X-RateLimit-Remaining` | Requests remaining in the current 10-minute window |
+| `X-RateLimit-Reset` | Unix timestamp when the per-phone window resets |
+| `Retry-After` | Seconds to wait (only on 429 responses) |
+
 **Responses**
 
 | Status | Description                                                  |
 |--------|--------------------------------------------------------------|
 | 200    | OTP sent (or silently dropped if number is not registered)   |
 | 400    | Validation error                                             |
-| 429    | Rate limit exceeded                                          |
+| 429    | Rate limit exceeded — check `Retry-After` header            |
 
 **Example**
 
