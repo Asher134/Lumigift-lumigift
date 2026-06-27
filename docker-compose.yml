@@ -64,6 +64,11 @@ services:
       --sentinel parallel-syncs mymaster 1
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lumigift-network
 
@@ -78,6 +83,11 @@ services:
       --sentinel parallel-syncs mymaster 1
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lumigift-network
 
@@ -92,6 +102,11 @@ services:
       --sentinel parallel-syncs mymaster 1
     depends_on:
       - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lumigift-network
 
@@ -183,11 +198,11 @@ services:
       redis:
         condition: service_healthy
       redis-sentinel-1:
-        condition: service_started
+        condition: service_healthy
       redis-sentinel-2:
-        condition: service_started
+        condition: service_healthy
       redis-sentinel-3:
-        condition: service_started
+        condition: service_healthy
     networks:
       - lumigift-network
     healthcheck:

@@ -41,7 +41,9 @@ paths:
         Sends a one-time password via SMS. Always returns the same success body
         regardless of whether the number is registered (prevents enumeration).
 
-        Rate limits: 3 requests per phone per 10 min; 10 requests per IP per hour.
+        Rate limits: 3 requests per phone per 10 min; 10 requests per IP per minute.
+      x-ratelimit-limit: 3
+      x-ratelimit-window: 600
       requestBody:
         required: true
         content:
@@ -57,6 +59,13 @@ paths:
       responses:
         "200":
           description: OTP sent (or silently dropped if number is not registered)
+          headers:
+            X-RateLimit-Limit:
+              $ref: "#/components/headers/X-RateLimit-Limit"
+            X-RateLimit-Remaining:
+              $ref: "#/components/headers/X-RateLimit-Remaining"
+            X-RateLimit-Reset:
+              $ref: "#/components/headers/X-RateLimit-Reset"
           content:
             application/json:
               schema:
@@ -499,6 +508,23 @@ components:
       scheme: bearer
       description: Static secret set in `CRON_SECRET` environment variable.
 
+  headers:
+    X-RateLimit-Limit:
+      description: Maximum number of requests allowed in the current window.
+      schema:
+        type: integer
+        example: 3
+    X-RateLimit-Remaining:
+      description: Number of requests remaining in the current window.
+      schema:
+        type: integer
+        example: 2
+    X-RateLimit-Reset:
+      description: Unix timestamp (seconds) when the current rate-limit window resets.
+      schema:
+        type: integer
+        example: 1719519600
+
   parameters:
     GiftId:
       name: id
@@ -652,7 +678,16 @@ components:
           schema:
             type: integer
           description: Seconds until the rate limit resets
+        X-RateLimit-Limit:
+          $ref: "#/components/headers/X-RateLimit-Limit"
+        X-RateLimit-Remaining:
+          $ref: "#/components/headers/X-RateLimit-Remaining"
+        X-RateLimit-Reset:
+          $ref: "#/components/headers/X-RateLimit-Reset"
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/ErrorResponse"
+          example:
+            success: false
+            error: "Too many requests. Please try again later."

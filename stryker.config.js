@@ -10,15 +10,12 @@ const config = {
     enableFindRelatedTests: true,
   },
   coverageAnalysis: "perTest",
+  // Scope mutation to service layer only (issue #401)
   mutate: [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "!src/**/*.test.ts",
-    "!src/**/*.test.tsx",
-    "!src/**/*.d.ts",
-    "!src/styles/**",
-    "!src/app/layout.tsx",
-    "!src/app/providers.tsx",
+    "src/server/services/gift.service.ts",
+    "src/server/services/claim.service.ts",
+    "src/server/services/gift-state-machine.ts",
+    "src/server/services/exchange-rate.service.ts",
   ],
   thresholds: {
     high: 80,

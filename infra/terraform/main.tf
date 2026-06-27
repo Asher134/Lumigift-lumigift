@@ -44,6 +44,8 @@ resource "aws_db_instance" "postgres" {
   skip_final_snapshot    = var.env != "prod"
   deletion_protection    = var.env == "prod"
   storage_encrypted      = true
+  backup_retention_period = 7               # retain automated snapshots for 7 days
+  multi_az               = var.env == "prod" # synchronous standby in a second AZ
 
   tags = local.tags
 }
@@ -155,7 +157,8 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
       environment = [
-        { name = "NODE_ENV", value = "production" }
+        { name = "NODE_ENV", value = "production" },
+        { name = "LOG_LEVEL", value = "info" }
       ]
       secrets = [
         { name = "DATABASE_URL", value_from = aws_secretsmanager_secret.db_url.arn },
@@ -239,24 +242,19 @@ resource "aws_iam_role_policy" "ecs_secrets" {
         aws_secretsmanager_secret.db_url.arn,
         aws_secretsmanager_secret.redis_url.arn,
         aws_secretsmanager_secret.nextauth_secret.arn,
-        aws_secretsmanager_secret.cron_secret.arn
+        aws_secretsmanager_secret.cron_secret.arn,
+        aws_secretsmanager_secret.paystack_secret_key.arn,
+        aws_secretsmanager_secret.stripe_secret_key.arn,
+        aws_secretsmanager_secret.stripe_webhook_secret.arn,
+        aws_secretsmanager_secret.termii_api_key.arn,
+        aws_secretsmanager_secret.stellar_server_secret_key.arn,
+        aws_secretsmanager_secret.cloudinary_api_secret.arn,
       ]
     }]
   })
 }
 
-resource "aws_iam_role" "ecs_task" {
-  name = "lumigift-${var.env}-ecs-task"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-    }]
-  })
-}
+# ECS task role and least-privilege Secrets Manager policy are defined in iam.tf
 
 # ─── CloudWatch Logs ──────────────────────────────────────────────────────────
 
@@ -379,6 +377,36 @@ resource "aws_secretsmanager_secret" "nextauth_secret" {
 
 resource "aws_secretsmanager_secret" "cron_secret" {
   name = "lumigift/${var.env}/CRON_SECRET"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "paystack_secret_key" {
+  name = "lumigift/${var.env}/PAYSTACK_SECRET_KEY"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "stripe_secret_key" {
+  name = "lumigift/${var.env}/STRIPE_SECRET_KEY"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "stripe_webhook_secret" {
+  name = "lumigift/${var.env}/STRIPE_WEBHOOK_SECRET"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "termii_api_key" {
+  name = "lumigift/${var.env}/TERMII_API_KEY"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "stellar_server_secret_key" {
+  name = "lumigift/${var.env}/STELLAR_SERVER_SECRET_KEY"
+  tags = local.tags
+}
+
+resource "aws_secretsmanager_secret" "cloudinary_api_secret" {
+  name = "lumigift/${var.env}/CLOUDINARY_API_SECRET"
   tags = local.tags
 }
 

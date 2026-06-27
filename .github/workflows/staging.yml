@@ -62,7 +62,7 @@ jobs:
 
       - name: Deploy to Vercel (staging)
         id: deploy
-        uses: amondnet/vercel-action@v42
+        uses: amondnet/vercel-action@de09aeac2ace6599ec9b11ef87558759a496bac4 # v42
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
@@ -90,13 +90,22 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run smoke tests against staging
+        id: smoke
         run: npm run e2e -- --grep "@smoke"
         env:
           PLAYWRIGHT_BASE_URL: ${{ env.STAGING_URL }}
           CI: true
 
-      - name: Upload smoke test report on failure
-        if: failure()
+      - name: Rollback staging deployment on smoke test failure
+        if: failure() && steps.smoke.outcome == 'failure'
+        run: |
+          echo "Smoke tests failed against $STAGING_URL — rolling back Vercel alias"
+          npx vercel alias rm staging.lumigift.app --token "$VERCEL_TOKEN" --yes || true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+      - name: Upload smoke test results
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: staging-smoke-report

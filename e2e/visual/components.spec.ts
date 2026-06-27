@@ -53,3 +53,16 @@ test("GiftCard — claimed state", async ({ page }) => {
   const card = page.locator("article").first();
   await expect(card).toHaveScreenshot("gift-card-claimed.png");
 });
+
+// ─── Dashboard mobile (iPhone SE, 375px) ────────────────────────────────────
+
+test("Dashboard — single-column grid on 375px viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/dashboard");
+  // Expect no horizontal scroll: scrollWidth should equal clientWidth
+  const hasOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > document.documentElement.clientWidth
+  );
+  expect(hasOverflow).toBe(false);
+  await expect(page).toHaveScreenshot("dashboard-mobile-375.png");
+});

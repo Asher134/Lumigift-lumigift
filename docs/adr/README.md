@@ -20,10 +20,11 @@ An ADR is a short document that captures a single architectural decision. It ans
 
 ## Index
 
-| ADR | Title | Status | Date |
-|-----|-------|--------|------|
-| [ADR-0001](0001-blockchain-stellar-soroban.md) | Blockchain Platform — Stellar / Soroban | Accepted | 2024-01-15 |
-| [ADR-0002](0002-payment-provider-paystack.md) | Payment Provider — Paystack (NGN On-Ramp) | Accepted | 2024-01-15 |
-| [ADR-0003](0003-auth-phone-otp.md) | Authentication Method — Phone OTP | Accepted | 2024-01-15 |
-| [ADR-0004](0004-database-postgresql.md) | Database — PostgreSQL | Accepted | 2024-01-15 |
-| [ADR-0006](0006-gift-service-database-persistence.md) | Gift Service — Database Persistence | Proposed | 2024-06-27 |
+| ADR                                            | Title                                     | Status   | Date       |
+| ---------------------------------------------- | ----------------------------------------- | -------- | ---------- |
+| [ADR-0001](0001-blockchain-stellar-soroban.md)                        | Blockchain Platform — Stellar / Soroban                    | Accepted | 2024-01-15 |
+| [ADR-0002](0002-payment-provider-paystack.md)                         | Payment Provider — Paystack (NGN On-Ramp)                  | Accepted | 2024-01-15 |
+| [ADR-0003](0003-auth-phone-otp.md)                                    | Authentication Method — Phone OTP                          | Accepted | 2024-01-15 |
+| [ADR-0004](0004-database-postgresql.md)                               | Database — PostgreSQL                                      | Accepted | 2024-01-15 |
+| [ADR-0005](0005-mobile-app-wrapper.md)                                | Mobile App Wrapper — Capacitor                             | Accepted | 2026-05-29 |
+| [ADR-0006](0006-gift-service-database-persistence.md)                 | Gift Service Database Persistence — PostgreSQL over In-Memory Map | Accepted | 2026-06-27 |

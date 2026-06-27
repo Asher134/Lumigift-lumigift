@@ -90,7 +90,35 @@
 .loadMore {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: var(--space-4);
   margin-top: var(--space-8);
+}
+
+/* ─── Responsive: single-column on narrow viewports ─── */
+@media (max-width: 479px) {
+  .page {
+    padding: var(--space-6) 0;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .tabs {
+    gap: var(--space-1);
+  }
+
+  .tab {
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-xs);
+  }
 }
 
 .emptyIconWrapper {
