@@ -157,7 +157,8 @@ resource "aws_ecs_task_definition" "app" {
         }
       ]
       environment = [
-        { name = "NODE_ENV", value = "production" }
+        { name = "NODE_ENV", value = "production" },
+        { name = "LOG_LEVEL", value = "info" }
       ]
       secrets = [
         { name = "DATABASE_URL", value_from = aws_secretsmanager_secret.db_url.arn },

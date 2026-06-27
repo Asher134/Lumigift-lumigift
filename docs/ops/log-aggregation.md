@@ -101,6 +101,47 @@ level:error | stats count() by bin(5m)
   ```
 - Export to S3 for cold storage using a scheduled Lambda or Data Firehose.
 
+## CloudWatch Logs Insights
+
+The ECS task definition sends all container logs to the `/ecs/lumigift-prod` log group
+(created by Terraform with 30-day retention). Use the queries below in the
+**CloudWatch → Logs Insights** console — select the `/ecs/lumigift-prod` log group.
+
+### Saved query: trace a request by correlation ID
+
+```
+fields @timestamp, level, msg, userId, giftId, service
+| filter correlationId = "<YOUR_CORRELATION_ID>"
+| sort @timestamp asc
+| limit 200
+```
+
+Save this in the console as **"Lumigift — Trace by correlationId"** so the team can
+run it without re-typing the query each time.
+
+### Saved query: recent errors
+
+```
+fields @timestamp, level, msg, correlationId, userId, service
+| filter level = "error" or level = "fatal"
+| sort @timestamp desc
+| limit 100
+```
+
+Save as **"Lumigift — Recent errors"**.
+
+### Saved query: payment failures
+
+```
+fields @timestamp, msg, correlationId, giftId, service
+| filter ispresent(giftId) and (msg like /payment/ or msg like /paystack/ or msg like /stripe/)
+| filter level = "error"
+| sort @timestamp desc
+| limit 50
+```
+
+Save as **"Lumigift — Payment errors"**.
+
 ## Alerts
 
 Configure the following alerts in your aggregation system:
@@ -124,7 +165,36 @@ Configure the following alerts in your aggregation system:
 
 ## AWS CloudWatch Agent (ECS/EC2)
 
-Add the CloudWatch agent as a sidecar in your ECS task definition:
+The ECS task definition (`taskdef.json`) uses the `awslogs` log driver so all
+container stdout/stderr flows directly to CloudWatch Logs without a sidecar:
+
+```json
+"logConfiguration": {
+  "logDriver": "awslogs",
+  "options": {
+    "awslogs-group":         "/ecs/lumigift-prod",
+    "awslogs-region":        "<AWS_REGION>",
+    "awslogs-stream-prefix": "ecs"
+  }
+}
+```
+
+The `/ecs/lumigift-prod` log group is provisioned by Terraform
+(`infra/terraform/main.tf`) with **30-day retention**.
+
+### Pino log level in production
+
+The application logger (`src/lib/logger.ts`) defaults to `level: 'info'` when
+`NODE_ENV=production`. Set `LOG_LEVEL=debug` in the task environment only
+for short-lived debugging sessions — verbose debug logs increase CloudWatch
+ingest costs and may expose sensitive context.
+
+To temporarily raise the level on a running task, update the `LOG_LEVEL`
+secret/environment variable and trigger a new ECS deployment.
+
+If you need to add a CloudWatch agent as an additional sidecar (e.g. for
+collecting system-level metrics), add it alongside the `app` container in
+the task definition:
 
 ```json
 {
