@@ -14,10 +14,10 @@ jobs:
     name: PostgreSQL Backup → S3
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@d45db47bd94e3a7d50b9c36da4cfe07ceca89d74 # v6
         with:
           role-to-assume: ${{ secrets.BACKUP_IAM_ROLE_ARN }}
           aws-region: us-east-1

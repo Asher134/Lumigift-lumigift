@@ -51,6 +51,8 @@ choco install gitleaks
 
 ### Setup
 
+> **New contributor?** Follow the step-by-step [Local Development Setup Guide](docs/local-dev-setup.md) which includes expected outputs, environment variable details, and a Common Errors section.
+
 ```bash
 # 1. Fork and clone
 git clone https://github.com/<your-username>/lumigift.git
@@ -61,7 +63,7 @@ npm install
 
 # 3. Copy environment variables
 cp .env.example .env.local
-# Fill in the required values (see .env.example for guidance)
+# Fill in the required values — see docs/local-dev-setup.md Step 3 for details
 
 # 4. Start the dev server
 npm run dev
@@ -260,7 +262,7 @@ PRs with types `docs`, `style`, `refactor`, `test`, `chore`, or `ci` are exclude
 
 ## Branch Protection Rules
 
-Both `main` and `develop` are protected branches. The rules below are enforced via GitHub repository settings and cannot be bypassed by any contributor, including maintainers.
+Both `main` and `develop` are protected branches. The rules below are enforced via GitHub repository settings and cannot be bypassed by any contributor, including maintainers and administrators.
 
 ### `main`
 
@@ -273,6 +275,7 @@ Both `main` and `develop` are protected branches. The rules below are enforced v
 | Direct pushes                     | ❌ Disabled                                                               |
 | Force pushes                      | ❌ Disabled                                                               |
 | Branch deletion                   | ❌ Disabled                                                               |
+| Enforce for administrators        | ✅ Enabled — admins are not exempt                                        |
 
 ### `develop`
 
@@ -284,6 +287,7 @@ Both `main` and `develop` are protected branches. The rules below are enforced v
 | Direct pushes                     | ❌ Disabled                                                               |
 | Force pushes                      | ❌ Disabled                                                               |
 | Branch deletion                   | ✅ Allowed                                                                |
+| Enforce for administrators        | ✅ Enabled — admins are not exempt                                        |
 
 ### Why these rules?
 
@@ -292,6 +296,7 @@ Both `main` and `develop` are protected branches. The rules below are enforced v
 - **1 approval on `main`** — production code gets a second pair of eyes before it ships.
 - **Force-push disabled** — prevents rewriting shared history and breaking other contributors' local branches.
 - **Deletion disabled on `main`** — the production branch cannot be accidentally removed.
+- **Admin enforcement** — the "Include administrators" option is enabled on both branches so repository admins cannot bypass CI or code-review requirements.
 
 ---
 

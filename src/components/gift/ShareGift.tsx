@@ -66,7 +66,7 @@ export function ShareGift({ giftId, recipientName }: ShareGiftProps) {
   };
 
   const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
-  const smsUrl = `sms:?body=${encodeURIComponent(text)}`;
+  const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
 
   return (
     <div className={styles.container}>
@@ -84,7 +84,7 @@ export function ShareGift({ giftId, recipientName }: ShareGiftProps) {
         variant="secondary"
         size="sm"
         onClick={handleShare}
-        aria-label="Share gift link"
+        aria-label={copied ? "Link copied" : "Share gift link"}
       >
         Share
       </Button>
@@ -100,11 +100,13 @@ export function ShareGift({ giftId, recipientName }: ShareGiftProps) {
       </a>
 
       <a
-        href={smsUrl}
+        href={twitterUrl}
+        target="_blank"
+        rel="noopener noreferrer"
         className={styles.link}
-        aria-label="Share via SMS"
+        aria-label="Share on Twitter"
       >
-        SMS
+        Twitter
       </a>
     </div>
   );

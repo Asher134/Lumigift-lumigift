@@ -15,17 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+        uses: aws-actions/configure-aws-credentials@d45db47bd94e3a7d50b9c36da4cfe07ceca89d74 # v6
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2
 
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
@@ -42,6 +42,22 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
+      - name: Scan image for CRITICAL CVEs (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ steps.build-image.outputs.image }}
+          format: sarif
+          output: trivy-deploy-results.sarif
+          severity: CRITICAL
+          exit-code: '1'
+          ignore-unfixed: true
+
+      - name: Upload Trivy scan results to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-deploy-results.sarif
+
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -49,26 +65,44 @@ jobs:
 
       - run: npm ci
 
-      - name: Run database migrations
+      - name: Run database migrations via ECS one-off task
         id: migrate
         run: |
-          npm run db:migrate 2>&1 | tee migration.log
-          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CLUSTER="${{ vars.ECS_CLUSTER || 'lumigift-prod' }}"
+          TASK_DEF="${{ vars.ECS_TASK_DEF || 'lumigift-prod' }}"
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[${{ secrets.AWS_PRIVATE_SUBNETS }}],securityGroups=[${{ secrets.AWS_MIGRATION_SG }}],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"app","command":["npm","run","db:migrate"]}]}' \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          aws ecs describe-tasks \
+            --cluster "$CLUSTER" \
+            --tasks "$TASK_ARN" > migration-task.json
+
+          EXIT_CODE=$(jq '.tasks[0].containers[0].exitCode' migration-task.json)
+          echo "exit_code=$EXIT_CODE" >> $GITHUB_OUTPUT
 
       - name: Upload migration logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: migration-logs-${{ github.sha }}
-          path: migration.log
+          path: migration-task.json
           retention-days: 30
 
       - name: Abort on migration failure
         if: steps.migrate.outputs.exit_code != '0'
         run: |
-          echo "::error::Database migration failed — aborting deployment. Check migration-logs artifact."
+          echo "::error::DB migration ECS task exited ${{ steps.migrate.outputs.exit_code }} — aborting. Check migration-logs artifact."
           exit 1
 
       - name: Fill in the new image ID in the Amazon ECS task definition
@@ -79,14 +113,14 @@ jobs:
 
       - name: Render Amazon ECS task definition
         id: render-app-container
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        uses: aws-actions/amazon-ecs-render-task-definition@6853cfae8c3a7d978fbf68b5a55453395541dfbb # v1
         with:
           task-definition: taskdef.json
           container-name: app
           image: ${{ steps.build-image.outputs.image }}
 
       - name: Deploy to Amazon ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        uses: aws-actions/amazon-ecs-deploy-task-definition@a310a830f5c14e583e35d84e4e1ec7dd177c3c9c # v2
         with:
           task-definition: ${{ steps.render-app-container.outputs.task-definition }}
           service: lumigift-prod
@@ -94,6 +128,27 @@ jobs:
           codedeploy-appspec: appspec.yaml
           codedeploy-application: lumigift-prod
           codedeploy-deployment-group: lumigift-prod
+          wait-for-service-stability: true
+
+      - name: Fill in worker task definition placeholders
+        run: |
+          sed -i 's|<AWS_ACCOUNT_ID>|${{ secrets.AWS_ACCOUNT_ID }}|g' taskdef-worker.json
+          sed -i 's|<AWS_REGION>|${{ vars.AWS_REGION }}|g' taskdef-worker.json
+
+      - name: Render Amazon ECS worker task definition
+        id: render-worker-container
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: taskdef-worker.json
+          container-name: worker
+          image: ${{ steps.build-image.outputs.image }}
+
+      - name: Deploy worker service to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-worker-container.outputs.task-definition }}
+          service: lumigift-worker-prod
+          cluster: lumigift-prod
           wait-for-service-stability: true
 
       - name: Run smoke tests against production
