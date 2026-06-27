@@ -21,6 +21,8 @@ function sign(params: Record<string, string | number>): string {
     .digest("hex");
 }
 
+const UPLOAD_BODY_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
+
 export const POST = withErrorHandler(
   withCsrf(async (_req: NextRequest) => {
     const timestamp = Math.floor(Date.now() / 1000);
@@ -41,5 +43,6 @@ export const POST = withErrorHandler(
       apiKey: process.env.CLOUDINARY_API_KEY,
       cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     });
-  })
+  }),
+  { bodySizeLimit: UPLOAD_BODY_SIZE_LIMIT }
 );
