@@ -5,7 +5,6 @@ This directory contains Architecture Decision Records (ADRs) for Lumigift. ADRs 
 ## What is an ADR?
 
 An ADR is a short document that captures a single architectural decision. It answers:
-
 - **Why** was this decision made?
 - **What** was decided?
 - **What** are the consequences?
