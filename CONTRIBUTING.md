@@ -51,6 +51,8 @@ choco install gitleaks
 
 ### Setup
 
+> **New contributor?** Follow the step-by-step [Local Development Setup Guide](docs/local-dev-setup.md) which includes expected outputs, environment variable details, and a Common Errors section.
+
 ```bash
 # 1. Fork and clone
 git clone https://github.com/<your-username>/lumigift.git
@@ -61,7 +63,7 @@ npm install
 
 # 3. Copy environment variables
 cp .env.example .env.local
-# Fill in the required values (see .env.example for guidance)
+# Fill in the required values — see docs/local-dev-setup.md Step 3 for details
 
 # 4. Start the dev server
 npm run dev
