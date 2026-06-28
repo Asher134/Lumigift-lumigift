@@ -1,11 +1,20 @@
-import { createHash } from "crypto";
+import { createHash, createHmac } from "crypto";
 import type { PoolClient } from "pg";
 
 /**
- * Returns the SHA-256 hex digest of an E.164 phone number.
- * Must match the hash stored in migrations/0003_hash_recipient_phone.sql.
+ * Returns the HMAC-SHA256 hex digest of an E.164 phone number, keyed with
+ * PHONE_HASH_SECRET. Using a secret pepper prevents rainbow-table attacks on
+ * the relatively small Nigerian phone-number space.
+ *
+ * Falls back to plain SHA-256 when PHONE_HASH_SECRET is absent so that
+ * existing test suites and local dev without the env var continue to work
+ * (a missing secret in production is caught by env validation at startup).
  */
 export function hashPhone(phone: string): string {
+  const secret = process.env.PHONE_HASH_SECRET;
+  if (secret) {
+    return createHmac("sha256", secret).update(phone).digest("hex");
+  }
   return createHash("sha256").update(phone).digest("hex");
 }
 

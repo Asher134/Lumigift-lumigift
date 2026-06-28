@@ -48,6 +48,9 @@ const envSchema = z.object({
   TERMII_API_KEY: z.string().min(1),
   TERMII_SENDER_ID: z.string().max(11).default("Lumigift"),
 
+  // Phone hashing
+  PHONE_HASH_SECRET: z.string().min(32),
+
   // Cron
   CRON_SECRET: z.string().min(32),
 
