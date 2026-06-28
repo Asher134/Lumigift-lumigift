@@ -24,7 +24,7 @@ async function fetchGifts(page: number, limit: number, status?: string): Promise
   }
   const res = await fetch(`/api/v1/gifts?${query.toString()}`);
   const json: ApiResponse<GiftPageOffset> = await res.json();
-  if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(typeof json.error === "string" ? json.error : json.error.message);
   return json.data;
 }
 
