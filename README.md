@@ -49,6 +49,8 @@ Lumigift is a full-stack gifting platform that enables users to send cash gifts 
                                           └─────────────────┘
 ```
 
+For a detailed view of the async job pipeline (HTTP → BullMQ → Stellar → event indexer), see [docs/architecture/bullmq-job-flow.md](docs/architecture/bullmq-job-flow.md).
+
 ### Tech Stack
 
 | Layer       | Technology                                       |
