@@ -36,19 +36,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { page, limit, status, cursor, pageSize } = validation.data;
 
-  // Offset-based pagination (page + limit)
-  if (
-    req.nextUrl.searchParams.has("page") ||
-    req.nextUrl.searchParams.has("limit") ||
-    req.nextUrl.searchParams.has("status")
-  ) {
-    const result = await getGiftsBySenderPage(userId, page, limit, status);
-    return NextResponse.json<ApiResponse<GiftPageOffset>>({ success: true, data: result });
+  // Cursor-based pagination (preferred)
+  if (req.nextUrl.searchParams.has("cursor") || (!req.nextUrl.searchParams.has("page") && !req.nextUrl.searchParams.has("status"))) {
+    const effectiveLimit = req.nextUrl.searchParams.has("limit") ? limit : pageSize;
+    const result = await getGiftsBySenderPaginated(userId, cursor ?? null, effectiveLimit, status);
+    return NextResponse.json<ApiResponse<GiftPage>>({ success: true, data: result });
   }
 
-  // Cursor-based pagination (legacy)
-  const page2 = await getGiftsBySenderPaginated(userId, cursor ?? null, pageSize);
-  return NextResponse.json<ApiResponse<GiftPage>>({ success: true, data: page2 });
+  // Offset-based pagination (deprecated)
+  const result = await getGiftsBySenderPage(userId, page, limit, status);
+  const res = NextResponse.json<ApiResponse<GiftPageOffset>>({ success: true, data: result });
+  res.headers.set("Deprecation", "true");
+  res.headers.set("Sunset", "2027-01-01");
+  res.headers.set("Link", '</api/v1/gifts?cursor=&limit=10>; rel="successor-version"');
+  return res;
 });
 
 export const POST = withErrorHandler(
