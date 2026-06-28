@@ -23,13 +23,13 @@ export async function POST(req: NextRequest) {
   const signature = req.headers.get("x-paystack-signature");
 
   if (!signature) {
-    return NextResponse.json({ error: "Missing Paystack signature" }, { status: 401 });
+    return NextResponse.json({ error: "Missing Paystack signature" }, { status: 400 });
   }
 
   // ── Step 1: Verify Paystack HMAC signature ───────────────────────────────
   if (!verifySignature(rawBody, signature)) {
     console.warn("Rejected Paystack webhook with invalid signature");
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
   // ── Step 2: Parse JSON ───────────────────────────────────────────────────
