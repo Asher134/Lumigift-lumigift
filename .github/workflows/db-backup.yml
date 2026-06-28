@@ -1,0 +1,63 @@
+name: DB Backup
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC daily
+  workflow_dispatch:        # allow manual trigger
+
+permissions:
+  id-token: write   # required for OIDC
+  contents: read
+
+jobs:
+  backup:
+    name: PostgreSQL Backup → S3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@d45db47bd94e3a7d50b9c36da4cfe07ceca89d74 # v6
+        with:
+          role-to-assume: ${{ secrets.BACKUP_IAM_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Install pg_dump
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Fetch DATABASE_URL from Secrets Manager
+        id: db
+        run: |
+          DB_URL=$(aws secretsmanager get-secret-value \
+            --secret-id "lumigift/prod/DATABASE_URL" \
+            --query SecretString --output text)
+          echo "::add-mask::$DB_URL"
+          echo "url=$DB_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Run backup
+        env:
+          DATABASE_URL: ${{ steps.db.outputs.url }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          AWS_REGION: us-east-1
+        run: bash scripts/backup.sh
+
+      - name: Emit success metric to CloudWatch
+        if: success()
+        run: |
+          aws cloudwatch put-metric-data \
+            --namespace "Lumigift/prod" \
+            --metric-name BackupSuccessCount \
+            --value 1 \
+            --unit Count \
+            --region us-east-1
+
+      - name: Log failure to CloudWatch Logs
+        if: failure()
+        run: |
+          aws logs put-log-events \
+            --log-group-name "/lumigift/prod/db-backup" \
+            --log-stream-name "github-actions" \
+            --log-events "[{\"timestamp\":$(date +%s%3N),\"message\":\"ERROR: backup job failed on $(date -u)\"}]" \
+            --region us-east-1 || true

@@ -1,8 +1,32 @@
 {
+  "headers": [
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/((?!_next/static).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/unlock",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/expire",
+      "schedule": "0 2 * * *"
     }
   ]
 }

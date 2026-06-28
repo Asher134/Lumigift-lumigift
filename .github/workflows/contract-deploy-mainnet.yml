@@ -1,0 +1,139 @@
+name: Deploy Contract to Mainnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "deploy-mainnet" to confirm'
+        required: true
+
+jobs:
+  # ── Gate ──────────────────────────────────────────────────────────────────
+  gate:
+    name: Confirm deployment intent
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate confirmation input
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "deploy-mainnet" ]; then
+            echo "❌ Confirmation string did not match. Aborting."
+            exit 1
+          fi
+          echo "✅ Confirmation accepted."
+
+  # ── Build ─────────────────────────────────────────────────────────────────
+  build:
+    name: Build WASM
+    runs-on: ubuntu-latest
+    needs: gate
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
+        with:
+          workspaces: contracts
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --features opt
+
+      - name: Build WASM
+        run: npm run contract:build
+
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: escrow-wasm
+          path: contracts/target/wasm32-unknown-unknown/release/*.wasm
+          retention-days: 7
+
+  # ── Manual approval ───────────────────────────────────────────────────────
+  # The "mainnet-deploy" GitHub environment must have a required reviewer
+  # configured under Settings → Environments so this job pauses for approval.
+  deploy:
+    name: Deploy to Mainnet
+    runs-on: ubuntu-latest
+    needs: build
+    environment: mainnet-deploy
+    permissions:
+      id-token: write   # needed for OIDC → AWS role assumption
+      contents: write   # needed to commit the deployment record
+    outputs:
+      contract-id: ${{ steps.deploy.outputs.contract-id }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download WASM artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: escrow-wasm
+          path: contracts/target/wasm32-unknown-unknown/release/
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --features opt
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@d45db47bd94e3a7d50b9c36da4cfe07ceca89d74 # v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy contract
+        id: deploy
+        env:
+          STELLAR_NETWORK: mainnet
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          LUMIGIFT_SECRET_NAME: ${{ secrets.LUMIGIFT_SECRET_NAME }}
+        run: |
+          npx ts-node scripts/deploy-contract.ts
+          CONTRACT_ID=$(jq -r '.[-1].contractId' deployments/mainnet.json)
+          echo "contract-id=$CONTRACT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Commit deployment record
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deployments/mainnet.json
+          git commit -m "chore: record mainnet contract deployment [skip ci]"
+          git push
+
+  # ── Smoke test ────────────────────────────────────────────────────────────
+  smoke-test:
+    name: Post-deployment smoke test
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --features opt
+
+      - name: Run smoke test
+        env:
+          STELLAR_NETWORK: mainnet
+          STELLAR_ESCROW_CONTRACT_ID: ${{ needs.deploy.outputs.contract-id }}
+        run: npx ts-node scripts/smoke-test-contract.ts

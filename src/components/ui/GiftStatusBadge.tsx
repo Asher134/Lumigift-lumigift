@@ -4,6 +4,7 @@ import type { GiftStatus } from "@/types";
 const labelMap: Record<GiftStatus, string> = {
   draft: "Draft",
   pending_payment: "Pending Payment",
+  funded: "Funded",
   locked: "Locked 🔒",
   unlocked: "Unlocked 🎁",
   claimed: "Claimed ✓",
@@ -26,3 +27,4 @@ export function GiftStatusBadge({ status }: { status: GiftStatus }) {
     </span>
   );
 }
+// .

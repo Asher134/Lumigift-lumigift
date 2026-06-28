@@ -4,6 +4,8 @@
 > Send money that stays completely hidden until a surprise unlock date.
 
 [![CI](https://github.com/JosephOnuh/Lumigift-lumigift/actions/workflows/ci.yml/badge.svg)](https://github.com/JosephOnuh/Lumigift-lumigift/actions/workflows/ci.yml)
+[![Mutation score](https://img.shields.io/endpoint?style=flat&url=https%3A%2F%2Fbadge-api.stryker-mutator.io%2Fgithub.com%2FJosephOnuh%2FLumigift-lumigift%2Fmain)](https://dashboard.stryker-mutator.io/reports/github.com/JosephOnuh/Lumigift-lumigift/main)
+[![codecov](https://codecov.io/gh/JosephOnuh/Lumigift-lumigift/graph/badge.svg?token=CODECOV_TOKEN)](https://codecov.io/gh/JosephOnuh/Lumigift-lumigift)
 [![License: MIT](https://img.shields.io/badge/License-MIT-purple.svg)](LICENSE)
 [![Built on Stellar](https://img.shields.io/badge/Built%20on-Stellar-blue)](https://stellar.org)
 [![Soroban](https://img.shields.io/badge/Smart%20Contracts-Soroban-blueviolet)](https://developers.stellar.org/docs/build/smart-contracts)
@@ -15,12 +17,15 @@
 Lumigift is a full-stack gifting platform that enables users to send cash gifts that remain completely hidden until a predetermined unlock date and time. By using the Stellar blockchain, Lumigift transforms digital money transfers into memorable experiences filled with mystery and anticipation.
 
 **Who is it for?**
+
 - Nigerians sending to Nigerians for birthdays, anniversaries, and holidays where surprise is key
-- Valentine's Day, graduations, and surprise celebrations where the *timing* of the gift is as important as the gift itself
+- Valentine's Day, graduations, and surprise celebrations where the _timing_ of the gift is as important as the gift itself
 
 ---
 
 ## Architecture
+
+[View Architecture Decision Records (ADRs)](docs/adr/README.md)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -46,16 +51,16 @@ Lumigift is a full-stack gifting platform that enables users to send cash gifts 
 
 ### Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js 14 (App Router), TypeScript, Vanilla CSS |
-| Backend | Next.js Route Handlers, server services layer |
-| Blockchain | Stellar, Soroban smart contracts (Rust) |
-| Stablecoin | USDC on Stellar |
-| Payments | Paystack (NGN), Stripe (international) |
-| SMS/OTP | Termii |
-| Database | PostgreSQL |
-| Cache/Queue | Redis |
+| Layer       | Technology                                       |
+| ----------- | ------------------------------------------------ |
+| Frontend    | Next.js 14 (App Router), TypeScript, Vanilla CSS |
+| Backend     | Next.js Route Handlers, server services layer    |
+| Blockchain  | Stellar, Soroban smart contracts (Rust)          |
+| Stablecoin  | USDC on Stellar                                  |
+| Payments    | Paystack (NGN), Stripe (international)           |
+| SMS/OTP     | Termii                                           |
+| Database    | PostgreSQL                                       |
+| Cache/Queue | Redis                                            |
 
 ---
 
@@ -96,19 +101,96 @@ scripts/
 
 ### Prerequisites
 
-- Node.js ≥ 20
-- npm ≥ 10
+- **Docker & Docker Compose** (recommended for quick setup)
+  - [Docker Desktop](https://www.docker.com/products/docker-desktop/) for Windows/Mac
+  - Docker Engine + Docker Compose for Linux
+- **OR** Manual setup:
+  - Node.js ≥ 20
+  - npm ≥ 10
+  - PostgreSQL ≥ 14
+  - Redis ≥ 7
 - Rust + `wasm32-unknown-unknown` target (for contract work)
 - [Stellar CLI](https://developers.stellar.org/docs/tools/developer-tools/cli/stellar-cli)
 
-### Installation
+### Quick Start with Docker (Recommended)
+
+The easiest way to get started is using Docker, which automatically sets up PostgreSQL, Redis, and the Next.js app:
+
+```bash
+# Clone the repository
+git clone https://github.com/JosephOnuh/Lumigift-lumigift.git
+cd lumigift
+
+# Copy environment file and configure
+cp .env.local.example .env.local
+# Edit .env.local with your API keys and secrets
+
+# Start all services (app, postgres, redis)
+docker-compose up
+
+# The app will be available at http://localhost:3000
+```
+
+**What's included:**
+
+- ✅ Next.js app running on port 3000
+- ✅ PostgreSQL database on port 5432 (auto-initialized with migrations)
+- ✅ Redis cache/queue on port 6379
+- ✅ Automatic health checks and service dependencies
+- ✅ Hot reload for development (mount your code as volume)
+
+**Useful Docker commands:**
+
+```bash
+# Start in detached mode (background)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f app
+
+# Stop all services
+docker-compose down
+
+# Rebuild after code changes
+docker-compose up --build
+
+# Reset everything (including data)
+docker-compose down -v
+
+# Development mode with hot reload
+docker-compose -f docker-compose.dev.yml up
+```
+
+**Production vs Development:**
+
+- `docker-compose.yml` - Production build with multi-stage optimization
+- `docker-compose.dev.yml` - Development mode with hot reload and volume mounts
+
+### Manual Installation
+
+If you prefer not to use Docker:
 
 ```bash
 git clone https://github.com/JosephOnuh/Lumigift-lumigift.git
 cd lumigift
 npm install
+
+# Set up PostgreSQL
+createdb lumigift
+psql lumigift < migrations/0001_add_stellar_tx_hash.sql
+psql lumigift < migrations/0002_add_device_tracking.sql
+psql lumigift < migrations/0002_normalize_phone_e164.sql
+psql lumigift < migrations/0003_hash_recipient_phone.sql
+psql lumigift < migrations/0004_gift_invitations.sql
+
+# Set up Redis
+redis-server
+
+# Configure environment
 cp .env.example .env.local
 # Fill in your environment variables
+
+# Start development server
 npm run dev
 ```
 
@@ -123,9 +205,21 @@ npm run contract:build
 # Run Rust tests
 npm run contract:test
 
-# Deploy to testnet
+# Deploy to testnet (idempotent — skips if already deployed)
 STELLAR_NETWORK=testnet npm run contract:deploy
+
+# Verify the deployed contract
+STELLAR_NETWORK=testnet npm run contract:verify
 ```
+
+### Deployed Contract Addresses
+
+| Network | Contract ID |
+|---------|-------------|
+| **Testnet** | [`CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCN4`](https://stellar.expert/explorer/testnet/contract/CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCN4) |
+| **Mainnet** | _not yet deployed_ |
+
+See [docs/ops/contract-deployment.md](docs/ops/contract-deployment.md) for the full deployment guide.
 
 ---
 
@@ -152,3 +246,4 @@ We welcome contributions! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before 
 ## License
 
 [MIT](LICENSE) © 2024 Lumigift
+.

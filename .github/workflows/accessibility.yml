@@ -1,0 +1,37 @@
+name: Accessibility Audit
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: a11y-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  axe-audit:
+    name: axe-core Accessibility Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Run accessibility tests
+        run: ./node_modules/.bin/jest src/app/__tests__/accessibility.test.tsx --no-coverage --json --outputFile=axe-results.json
+        # Exit code non-zero if any critical/serious violation is found (test throws)
+
+      - name: Upload axe results artifact
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: axe-audit-results
+          path: axe-results.json
+          retention-days: 30
