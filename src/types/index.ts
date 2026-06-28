@@ -10,10 +10,50 @@ export interface User {
   updatedAt: Date;
 }
 
+// ─── Group Gift ───────────────────────────────────────────────────────────────
+export interface GroupContribution {
+  id: string;
+  groupGiftId: string;
+  contributorName: string;
+  contributorPhone?: string;
+  amountNgn: number;
+  paymentReference: string;
+  status: "pending" | "success" | "failed";
+  createdAt: Date;
+}
+
+export interface GroupGift {
+  id: string;
+  creatorId: string;
+  recipientPhone: string;
+  recipientName: string;
+  targetAmountNgn: number;
+  collectedAmountNgn: number;
+  message?: string;
+  unlockAt: Date;
+  deadline: Date;
+  status: "open" | "funded" | "locked" | "expired" | "cancelled";
+  contributions: GroupContribution[];
+  shareToken: string; // used in the shareable link
+  contractId?: string;
+  stellarTxHash?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // ─── Gift ─────────────────────────────────────────────────────────────────────
+export type OccasionCategory =
+  | "general"
+  | "birthday"
+  | "valentine"
+  | "anniversary"
+  | "graduation"
+  | "christmas";
+
 export type GiftStatus =
   | "draft"
   | "pending_payment"
+  | "funded"
   | "locked"
   | "unlocked"
   | "claimed"
@@ -23,19 +63,25 @@ export type GiftStatus =
 export interface Gift {
   id: string;
   senderId: string;
-  recipientPhone: string;
+  /** SHA-256 hex digest of the E.164 recipient phone number. Plaintext is never persisted. */
+  recipientPhoneHash: string;
   recipientName: string;
+  recipientEmail?: string;
   amountNgn: number;
   amountUsdc: string; // on-chain amount as string to preserve precision
   message?: string;
+  voiceNoteUrl?: string;
   mediaUrl?: string;
   unlockAt: Date;
   status: GiftStatus;
+  occasion: OccasionCategory;
+  notifyAt?: Date;
   contractId?: string;       // Soroban escrow contract instance
   stellarTxHash?: string;    // funding transaction hash
   claimTxHash?: string;      // claim transaction hash
   createdAt: Date;
   updatedAt: Date;
+  deletedAt?: Date | null;   // soft delete timestamp; null/undefined = active
 }
 
 // ─── Payment ──────────────────────────────────────────────────────────────────
@@ -53,7 +99,15 @@ export interface Payment {
 }
 
 // ─── Notification ─────────────────────────────────────────────────────────────
-export type NotificationType = "gift_received" | "gift_unlocked" | "gift_claimed" | "otp";
+export type NotificationType =
+  | "gift_received"
+  | "gift_unlocked"
+  | "gift_claimed"
+  | "payment_confirmed"
+  | "gift_expiring"
+  | "otp"
+  | "new_device_login"
+  | "suspicious_login_reported";
 
 export interface Notification {
   id: string;
@@ -75,6 +129,17 @@ export interface ApiError {
   success: false;
   error: string;
   code?: string;
+  /** Structured field-level validation errors (populated for 400 validation failures). */
+  errors?: Array<{ path: string; message: string }>;
+}
+
+/**
+ * Specific variant of ApiError used when Zod schema validation fails.
+ * Always includes a structured `errors` array.
+ */
+export interface ApiValidationError extends ApiError {
+  error: "Validation failed";
+  errors: Array<{ path: string; message: string }>;
 }
 
 export type ApiResponse<T> = ApiSuccess<T> | ApiError;

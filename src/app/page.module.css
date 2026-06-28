@@ -52,6 +52,18 @@
   justify-content: center;
 }
 
+.socialProof {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.socialProofDivider {
+  opacity: 0.4;
+}
+
 /* Features */
 .features {
   padding: var(--space-20) 0;

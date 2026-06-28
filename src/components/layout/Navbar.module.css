@@ -5,6 +5,12 @@
   background-color: rgba(13, 13, 20, 0.85);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-border-subtle);
+  transition: background-color var(--transition-base);
+}
+
+/* ─── Light theme adjustments ───────────────────────────────────────────── */
+[data-theme="light"] .header {
+  background-color: rgba(245, 245, 250, 0.9);
 }
 
 .nav {
@@ -31,12 +37,18 @@
   font-weight: var(--font-bold);
   font-size: var(--text-lg);
   color: #fff;
+  transition: background-color var(--transition-fast);
+}
+
+.logoMark:hover {
+  opacity: 0.9;
 }
 
 .logoText {
   font-size: var(--text-xl);
   font-weight: var(--font-bold);
   color: var(--color-text-primary);
+  transition: color var(--transition-base);
 }
 
 .links {
@@ -50,14 +62,36 @@
   font-weight: var(--font-medium);
   color: var(--color-text-secondary);
   transition: color var(--transition-fast);
+  position: relative;
 }
 
 .link:hover {
   color: var(--color-text-primary);
 }
 
+.linkActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-semibold);
+}
+
+.linkActive::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-primary);
+}
+
+/* ─── Mobile Responsiveness ────────────────────────────────────────────── */
 @media (max-width: 640px) {
   .links .link {
     display: none;
+  }
+
+  .nav {
+    height: 56px;
   }
 }

@@ -1,0 +1,6 @@
+{
+  "defaultDatabase": {
+    "url": { "ENV": "DATABASE_URL" }
+  },
+  "migrationPattern": "db/migrations/*.js"
+}

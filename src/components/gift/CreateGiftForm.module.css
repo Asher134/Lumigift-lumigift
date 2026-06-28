@@ -20,3 +20,108 @@
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
 }
+
+.charCounter {
+  display: block;
+  text-align: right;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+  transition: color 0.15s;
+}
+
+.charCounter[data-warning="true"] {
+  color: var(--color-error);
+  font-weight: var(--font-medium);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.conversion {
+  margin-top: calc(var(--space-1) * -1);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.conversionValue {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-medium);
+}
+
+.conversionRate {
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.stale {
+  color: var(--color-warning);
+  font-weight: var(--font-medium);
+}
+
+.refreshing {
+  display: inline-block;
+  margin-left: var(--space-1);
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .5; }
+}
+
+.select {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--color-brand-primary);
+}
+
+/* ─── Mobile (≤ 375px) ────────────────────────────────────────────────────── */
+@media (max-width: 375px) {
+  .form {
+    max-width: 100%;
+    gap: var(--space-4);
+  }
+
+  .title {
+    font-size: var(--text-xl);
+  }
+}
+
+/* ─── Small mobile (≤ 320px) ─────────────────────────────────────────────── */
+@media (max-width: 320px) {
+  .form {
+    gap: var(--space-3);
+  }
+
+  .title {
+    font-size: var(--text-lg);
+  }
+}

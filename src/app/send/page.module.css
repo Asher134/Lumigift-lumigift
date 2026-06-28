@@ -6,3 +6,27 @@
   display: flex;
   justify-content: center;
 }
+
+/* ─── Mobile ──────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .page {
+    padding: var(--space-8) 0;
+  }
+
+  .inner {
+    width: 100%;
+  }
+}
+
+@media (max-width: 375px) {
+  .page {
+    padding: var(--space-6) 0;
+  }
+}
+
+/* Ensure full-width buttons on mobile */
+@media (max-width: 640px) {
+  :global(.btn) {
+    width: 100%;
+  }
+}
