@@ -1334,6 +1334,110 @@ mod tests {
         assert_eq!(err, EscrowError::ProposalExpired);
     }
 
+    // ── Issue #614: migrate() v0→v1 tests ─────────────────────────────────
+
+    #[test]
+    fn test_migrate_v0_to_v1_succeeds() {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, EscrowContract);
+        let client = EscrowContractClient::new(&env, &contract_id);
+
+        client.migrate();
+
+        let events = env.events().all();
+        assert!(events.len() > 0, "migrate should emit a migrated event");
+    }
+
+    #[test]
+    fn test_migrate_already_migrated_is_idempotent() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, _token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &3_601, &signers, &1,
+        );
+
+        let events_before_len = env.events().all().len();
+
+        client.migrate();
+
+        let events_after_len = env.events().all().len();
+        assert_eq!(events_before_len, events_after_len,
+            "no new events should be emitted when already at current schema version");
+    }
+
+    // ── Issue #612: extend_unlock() timestamp validation tests ──────────────
+
+    #[test]
+    fn test_extend_unlock_rejects_past_timestamp() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, _token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        let unlock_time: u64 = 10_000;
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &unlock_time, &signers, &1,
+        );
+
+        let err = client
+            .try_extend_unlock(&5_000)
+            .unwrap_err()
+            .unwrap();
+        assert_eq!(err, EscrowError::UnlockNotExtended);
+    }
+
+    #[test]
+    fn test_extend_unlock_rejects_same_timestamp() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, _token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        let unlock_time: u64 = 10_000;
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &unlock_time, &signers, &1,
+        );
+
+        let err = client
+            .try_extend_unlock(&unlock_time)
+            .unwrap_err()
+            .unwrap();
+        assert_eq!(err, EscrowError::UnlockNotExtended);
+    }
+
+    #[test]
+    fn test_extend_unlock_accepts_future_timestamp() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, _token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        let unlock_time: u64 = 10_000;
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &unlock_time, &signers, &1,
+        );
+
+        let new_unlock: u64 = 20_000;
+        client.extend_unlock(&new_unlock);
+
+        let (_sender, _recipient, _amount, actual_unlock, _claimed, _cancelled) =
+            client.get_state().unwrap();
+        assert_eq!(actual_unlock, new_unlock);
+    }
+
     proptest! {
         #[test]
         fn fuzz_initialize_amounts(amount in any::<i128>()) {
