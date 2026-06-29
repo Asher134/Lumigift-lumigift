@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import type { Gift, GiftStatus } from "@/types";
@@ -28,6 +28,10 @@ export function GiftCard({ gift, perspective, recipientStellarKey }: GiftCardPro
   const router = useRouter();
   const [status, setStatus] = useState<GiftStatus>(gift.status);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  useEffect(() => {
+    setStatus(gift.status);
+  }, [gift.status]);
   const isLocked = status === "locked";
   const name = perspective === "sender" ? `To: ${gift.recipientName}` : "A gift for you";
 

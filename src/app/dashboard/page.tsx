@@ -13,6 +13,14 @@ import type { ApiResponse } from "@/types";
 import type { GiftPageOffset } from "@/server/services/gift.service";
 
 const DEFAULT_LIMIT = 10;
+const POLL_INTERVAL_MS = 30_000;
+
+const TERMINAL_STATUSES = new Set(["claimed", "cancelled", "expired"]);
+
+function hasNonTerminalGifts(data: GiftPageOffset | undefined): boolean {
+  if (!data) return false;
+  return data.data.some((g) => !TERMINAL_STATUSES.has(g.status));
+}
 
 async function fetchGifts(page: number, limit: number, status?: string): Promise<GiftPageOffset> {
   const query = new URLSearchParams({
@@ -24,7 +32,7 @@ async function fetchGifts(page: number, limit: number, status?: string): Promise
   }
   const res = await fetch(`/api/v1/gifts?${query.toString()}`);
   const json: ApiResponse<GiftPageOffset> = await res.json();
-  if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(typeof json.error === "string" ? json.error : json.error.message);
   return json.data;
 }
 
@@ -43,6 +51,8 @@ export default function DashboardPage() {
   const { data, status } = useQuery({
     queryKey: ["gifts", page, currentStatus],
     queryFn: () => fetchGifts(page, DEFAULT_LIMIT, currentStatus),
+    refetchInterval: (query: { state: { data: GiftPageOffset | undefined } }) =>
+      hasNonTerminalGifts(query.state.data) ? POLL_INTERVAL_MS : false,
   });
 
   const handleStatusChange = (newStatus: string) => {

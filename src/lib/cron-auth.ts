@@ -23,7 +23,8 @@
 
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import type { ApiResponse } from "@/types";
+import { createErrorResponse } from "@/server/middleware";
+import { getCorrelationId } from "@/lib/logger";
 
 const WINDOW_SECONDS = 60;
 
@@ -31,43 +32,27 @@ function hmacHex(secret: string, timestamp: number): string {
   return createHmac("sha256", secret).update(String(timestamp)).digest("hex");
 }
 
-/**
- * Verifies cron auth: Bearer token + time-based HMAC.
- *
- * @returns `null` on success, or a `NextResponse` 401 to return immediately.
- */
-export function verifyCronAuth(req: NextRequest): NextResponse<ApiResponse<never>> | null {
+export function verifyCronAuth(req: NextRequest): NextResponse | null {
+  const correlationId = getCorrelationId(req.headers);
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
-    // Misconfigured server — block the request
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "Cron secret not configured" },
-      { status: 500 }
-    );
+    return createErrorResponse("INTERNAL_ERROR", "Cron secret not configured", correlationId, 500);
   }
 
-  // 1. Bearer token check
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "Unauthorized" },
-      { status: 401 }
-    );
+    return createErrorResponse("UNAUTHORIZED", "Unauthorized", correlationId, 401);
   }
 
-  // 2. HMAC check
   const clientHmac = req.headers.get("x-cron-hmac");
   if (!clientHmac) {
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "Missing X-Cron-HMAC header" },
-      { status: 401 }
-    );
+    return createErrorResponse("UNAUTHORIZED", "Missing X-Cron-HMAC header", correlationId, 401);
   }
 
   const now = Math.floor(Date.now() / 1000);
   const windows = [
     Math.floor(now / WINDOW_SECONDS),
-    Math.floor(now / WINDOW_SECONDS) - 1, // allow one previous window for clock skew
+    Math.floor(now / WINDOW_SECONDS) - 1,
   ];
 
   const clientBuf = Buffer.from(clientHmac, "utf8");
@@ -81,10 +66,7 @@ export function verifyCronAuth(req: NextRequest): NextResponse<ApiResponse<never
   });
 
   if (!valid) {
-    return NextResponse.json<ApiResponse<never>>(
-      { success: false, error: "Invalid or expired HMAC signature" },
-      { status: 401 }
-    );
+    return createErrorResponse("UNAUTHORIZED", "Invalid or expired HMAC signature", correlationId, 401);
   }
 
   return null;

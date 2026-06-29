@@ -18,7 +18,7 @@ function adminHeaders() {
 async function fetchStats(): Promise<AdminStats> {
   const res = await fetch("/api/v1/admin/stats", { headers: adminHeaders() });
   const json: ApiResponse<AdminStats> = await res.json();
-  if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(typeof json.error === "string" ? json.error : json.error.message);
   return json.data;
 }
 
@@ -27,14 +27,14 @@ async function fetchGifts(page: number, status: string): Promise<AdminGiftPage> 
   if (status) params.set("status", status);
   const res = await fetch(`/api/v1/admin/gifts?${params}`, { headers: adminHeaders() });
   const json: ApiResponse<AdminGiftPage> = await res.json();
-  if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(typeof json.error === "string" ? json.error : json.error.message);
   return json.data;
 }
 
 async function fetchUsers(page: number): Promise<{ users: AdminUserRow[]; total: number }> {
   const res = await fetch(`/api/v1/admin/users?page=${page}`, { headers: adminHeaders() });
   const json: ApiResponse<{ users: AdminUserRow[]; total: number }> = await res.json();
-  if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(typeof json.error === "string" ? json.error : json.error.message);
   return json.data;
 }
 

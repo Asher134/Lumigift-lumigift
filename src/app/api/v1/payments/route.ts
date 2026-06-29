@@ -3,7 +3,8 @@ import crypto from "crypto";
 import { serverConfig } from "@/server/config";
 import { updateGiftStatus } from "@/server/services/gift.service";
 import { getRedisClient } from "@/lib/redis";
-import { validateRequest } from "@/server/middleware";
+import { createErrorResponse, validateRequest } from "@/server/middleware";
+import { getCorrelationId } from "@/lib/logger";
 import { paystackWebhookSchema } from "@/lib/schemas";
 
 const IDEMPOTENCY_TTL_SECONDS = 86_400; // 24 hours
@@ -19,25 +20,24 @@ function verifySignature(rawBody: string, signature: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const correlationId = getCorrelationId(req.headers);
   const rawBody = await req.text();
   const signature = req.headers.get("x-paystack-signature");
 
   if (!signature) {
-    return NextResponse.json({ error: "Missing Paystack signature" }, { status: 400 });
+    return createErrorResponse("UNAUTHORIZED", "Missing Paystack signature", correlationId, 401);
   }
 
-  // ── Step 1: Verify Paystack HMAC signature ───────────────────────────────
   if (!verifySignature(rawBody, signature)) {
     console.warn("Rejected Paystack webhook with invalid signature");
-    return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    return createErrorResponse("UNAUTHORIZED", "Invalid signature", correlationId, 401);
   }
 
-  // ── Step 2: Parse JSON ───────────────────────────────────────────────────
   let rawEvent: unknown;
   try {
     rawEvent = JSON.parse(rawBody);
   } catch {
-    return NextResponse.json({ success: false, error: "Invalid JSON" }, { status: 400 });
+    return createErrorResponse("VALIDATION_ERROR", "Invalid JSON", correlationId, 400);
   }
 
   // ── Step 3: Validate the parsed event shape with Zod ────────────────────
