@@ -1334,6 +1334,82 @@ mod tests {
         assert_eq!(err, EscrowError::ProposalExpired);
     }
 
+    #[test]
+    fn test_extend_unlock_requires_future_time() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, _token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &3_601, &signers, &1,
+        );
+
+        // Try to extend with a time equal to current unlock — should fail
+        let err = client
+            .try_extend_unlock(&3_601)
+            .unwrap_err()
+            .unwrap();
+        assert_eq!(err, EscrowError::UnlockNotExtended);
+
+        // Try to extend with a time earlier than current unlock — should fail
+        let err = client
+            .try_extend_unlock(&3_000)
+            .unwrap_err()
+            .unwrap();
+        assert_eq!(err, EscrowError::UnlockNotExtended);
+
+        // Extend with a strictly later time — should succeed
+        client.extend_unlock(&7_200);
+        let (_, _, _, unlock_time, _, _) = client.get_state().unwrap();
+        assert_eq!(unlock_time, 7_200);
+    }
+
+    #[test]
+    fn test_upgrade_rejects_non_admin() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, _token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let non_admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &3_601, &signers, &1,
+        );
+
+        let dummy_hash: BytesN<32> = BytesN::from_array(&env, &[0u8; 32]);
+
+        // Non-admin calling upgrade should fail — require_auth will reject
+        // because `non_admin` is not the stored admin
+        let result = client.try_upgrade(&dummy_hash);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_cancel_after_claim_is_rejected() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let (sender, recipient, token_id, token, client) = setup(&env);
+        let admin = Address::generate(&env);
+        let signers = vec![admin.clone()];
+
+        client.initialize(
+            &admin, &Symbol::new(&env, "g1"), &sender, &recipient,
+            &token_id, &100_000_000, &3_601, &signers, &1,
+        );
+
+        env.ledger().with_mut(|l| l.timestamp = 3_602);
+        client.claim();
+        assert_eq!(token.balance(&recipient), 100_000_000);
+
+        let err = client.try_cancel().unwrap_err().unwrap();
+        assert_eq!(err, EscrowError::AlreadyClaimed);
+    }
+
     proptest! {
         #[test]
         fn fuzz_initialize_amounts(amount in any::<i128>()) {
