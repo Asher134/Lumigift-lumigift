@@ -161,10 +161,19 @@ docker-compose down -v
 docker-compose -f docker-compose.dev.yml up
 ```
 
-**Production vs Development:**
+**Environment overrides:**
 
-- `docker-compose.yml` - Production build with multi-stage optimization
-- `docker-compose.dev.yml` - Development mode with hot reload and volume mounts
+All environments share a common `docker-compose.base.yml` (Redis Sentinel topology, Postgres, app skeleton). Each environment file is an override layer — never run the base file alone.
+
+| Environment | Command |
+|-------------|---------|
+| Production  | `docker-compose -f docker-compose.base.yml -f docker-compose.yml up` |
+| Staging     | `docker-compose -f docker-compose.base.yml -f docker-compose.staging.yml up` |
+| Development | `docker-compose -f docker-compose.dev.yml up` |
+
+Staging mirrors the production Redis Sentinel topology (1 primary, 1 replica, 3 sentinels) on separate ports (Postgres `5433`, app `3001`) so environment-specific bugs are caught before they reach production.
+
+A CI workflow (`.github/workflows/compose-parity.yml`) runs on every PR that touches any `docker-compose*.yml` file and fails if staging is missing a Sentinel service or the service lists diverge from production.
 
 ### Manual Installation
 

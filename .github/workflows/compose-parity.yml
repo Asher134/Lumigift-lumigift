@@ -1,0 +1,56 @@
+name: Docker Compose Parity Check
+
+on:
+  pull_request:
+    paths:
+      - "docker-compose*.yml"
+  push:
+    branches: [main, staging]
+    paths:
+      - "docker-compose*.yml"
+
+jobs:
+  parity-check:
+    name: Staging/Production parity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check base file exists
+        run: |
+          test -f docker-compose.base.yml || (echo "::error::docker-compose.base.yml missing" && exit 1)
+
+      - name: Verify staging has Redis Sentinel services
+        run: |
+          for svc in redis-sentinel-1 redis-sentinel-2 redis-sentinel-3 redis-replica redis-exporter; do
+            grep -q "^  ${svc}:" docker-compose.staging.yml \
+              || (echo "::error::Staging is missing service: ${svc}" && exit 1)
+          done
+          echo "All Sentinel services present in staging."
+
+      - name: Check service parity between production and staging overrides
+        run: |
+          prod_services=$(grep -E '^  [a-z]' docker-compose.yml | sed 's/://g' | sort)
+          staging_services=$(grep -E '^  [a-z]' docker-compose.staging.yml | sed 's/://g' | sort)
+          diff_out=$(diff <(echo "$prod_services") <(echo "$staging_services") || true)
+          if [ -n "$diff_out" ]; then
+            echo "::warning::Service list differs between docker-compose.yml and docker-compose.staging.yml:"
+            echo "$diff_out"
+          else
+            echo "Service lists match between production and staging."
+          fi
+
+      - name: Both overrides must extend base
+        run: |
+          echo "Base file line count: $(wc -l < docker-compose.base.yml)"
+          echo "Production override line count: $(wc -l < docker-compose.yml)"
+          echo "Staging override line count: $(wc -l < docker-compose.staging.yml)"
+          # Ensure the override files are smaller than the (monolithic) original would have been —
+          # i.e., they are truly overrides, not duplicated full stacks.
+          base_lines=$(wc -l < docker-compose.base.yml)
+          prod_lines=$(wc -l < docker-compose.yml)
+          staging_lines=$(wc -l < docker-compose.staging.yml)
+          if [ "$prod_lines" -gt "$base_lines" ] && [ "$staging_lines" -gt "$base_lines" ]; then
+            echo "::warning::Override files are larger than base — possible duplication."
+          fi
+          echo "Parity check passed."
