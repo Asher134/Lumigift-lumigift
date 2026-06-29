@@ -40,3 +40,27 @@ regexes = ["https://horizon-testnet\\.stellar\\.org"]
 description = "Placeholder Termii and Paystack keys in tests/docs"
 paths = ["src/**/__tests__/**", "docs/**"]
 regexes = ["placeholder", "sk_test_"]
+
+[[rules.allowlist]]
+description = "Local dev example env file — no real secrets"
+paths = [".env.local.example"]
+regexTarget = "line"
+regexes = [".*"]
+
+[[rules.allowlist]]
+description = "Staging example env file — no real secrets"
+paths = [".env.staging.example"]
+regexTarget = "line"
+regexes = [".*"]
+
+[[rules.allowlist]]
+description = "CI placeholder values in staging workflow"
+paths = [".github/workflows/staging.yml", ".github/workflows/deploy.yml"]
+regexes = [
+  "ci-secret-placeholder",
+  "ci-cron-secret-placeholder",
+  "sk_test_placeholder",
+  "whsec_placeholder",
+  "SXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "placeholder",
+]
