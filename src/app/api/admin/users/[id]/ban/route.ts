@@ -3,6 +3,7 @@ import { withAdmin, withErrorHandler } from "@/server/middleware";
 import { adminBanUser } from "@/server/services/admin.service";
 import type { ApiResponse } from "@/types";
 
+// Protected by withAdmin middleware — only authenticated admin users may access this route.
 export const POST = withErrorHandler(
   withAdmin(async (_req: NextRequest, context: any) => {
     const params = await context.params;

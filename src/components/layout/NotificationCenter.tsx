@@ -75,10 +75,19 @@ export function NotificationCenter() {
 
   return (
     <div style={{ position: "relative" }} ref={ref}>
+      {/* Live region announces count changes to screen readers without requiring focus */}
+      <span
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}
+      >
+        {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}` : ""}
+      </span>
       <button
         className={styles.bell}
         onClick={() => setOpen((o) => !o)}
-        aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
+        aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}` : "Notifications"}
         aria-expanded={open}
         aria-haspopup="true"
       >

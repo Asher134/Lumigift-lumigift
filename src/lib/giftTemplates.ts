@@ -3,6 +3,8 @@ export interface GiftTemplate {
   occasion: string;
   emoji: string;
   suggestedMessage: string;
+  /** Optional preview image URL for the template card */
+  image?: string;
 }
 
 export const GIFT_TEMPLATES: GiftTemplate[] = [
