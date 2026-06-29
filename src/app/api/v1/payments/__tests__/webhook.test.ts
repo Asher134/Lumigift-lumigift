@@ -21,8 +21,13 @@ jest.mock("@/server/config", () => ({
   serverConfig: {
     paystack: { secretKey: "test-secret" },
     redis: { url: "redis://localhost:6379" },
+    database: { url: "postgresql://localhost/test", poolMin: 1, poolMax: 5, idleTimeoutMs: 10000, connectionTimeoutMs: 5000 },
+    auth: { secret: "test-secret", secretPrevious: undefined, rotationGraceHours: 24, csrfSecret: "csrf-secret" },
+    cors: { allowedOrigins: ["http://localhost:3000"] },
   },
 }));
+
+jest.mock("pg", () => ({ Pool: jest.fn().mockReturnValue({ query: jest.fn(), end: jest.fn(), on: jest.fn() }) }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,17 +62,17 @@ describe("POST /api/payments (Paystack webhook)", () => {
     ({ POST } = await import("@/app/api/v1/payments/route"));
   });
 
-  it("returns 401 for invalid signature", async () => {
+  it("returns 400 for invalid signature", async () => {
     const req = makeRequest({ event: "charge.success", data: { reference: "ref1" } }, "badsig");
     const res = await POST(req as never);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
     expect(mockUpdateGiftStatus).not.toHaveBeenCalled();
   });
 
-  it("returns 401 when the signature header is missing", async () => {
+  it("returns 400 when the signature header is missing", async () => {
     const req = makeRequest({ event: "charge.success", data: { reference: "ref_missing" } }, null);
     const res = await POST(req as never);
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
     expect(mockUpdateGiftStatus).not.toHaveBeenCalled();
   });
 

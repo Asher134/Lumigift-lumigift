@@ -92,17 +92,53 @@ describe("normalizePhone", () => {
 });
 
 describe("hashPhone", () => {
-  it("returns a 64-char hex string (SHA-256)", () => {
-    const h = hashPhone("+2348012345678");
-    expect(h).toMatch(/^[0-9a-f]{64}$/);
+  const phone = "+2348012345678";
+
+  describe("without PHONE_HASH_SECRET (plain SHA-256 fallback)", () => {
+    it("returns a 64-char hex string", () => {
+      expect(hashPhone(phone)).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("is deterministic", () => {
+      expect(hashPhone(phone)).toBe(hashPhone(phone));
+    });
+
+    it("produces different hashes for different numbers", () => {
+      expect(hashPhone(phone)).not.toBe(hashPhone("+2349012345678"));
+    });
   });
 
-  it("is deterministic — same input, same hash", () => {
-    expect(hashPhone("+2348012345678")).toBe(hashPhone("+2348012345678"));
-  });
+  describe("with PHONE_HASH_SECRET (HMAC-SHA256)", () => {
+    const SECRET = "a".repeat(32);
 
-  it("produces different hashes for different numbers", () => {
-    expect(hashPhone("+2348012345678")).not.toBe(hashPhone("+2349012345678"));
+    beforeEach(() => {
+      process.env.PHONE_HASH_SECRET = SECRET;
+    });
+    afterEach(() => {
+      delete process.env.PHONE_HASH_SECRET;
+    });
+
+    it("returns a 64-char hex string", () => {
+      expect(hashPhone(phone)).toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("same phone + same secret produces the same hash", () => {
+      expect(hashPhone(phone)).toBe(hashPhone(phone));
+    });
+
+    it("different secret produces a different hash", () => {
+      const h1 = hashPhone(phone); // uses SECRET
+      process.env.PHONE_HASH_SECRET = "b".repeat(32);
+      const h2 = hashPhone(phone);
+      expect(h1).not.toBe(h2);
+    });
+
+    it("HMAC hash differs from plain SHA-256 hash for the same input", () => {
+      const hmacHash = hashPhone(phone);
+      delete process.env.PHONE_HASH_SECRET;
+      const sha256Hash = hashPhone(phone);
+      expect(hmacHash).not.toBe(sha256Hash);
+    });
   });
 });
 

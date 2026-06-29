@@ -33,13 +33,14 @@ export const giftStatusSchema = z.enum([
 
 export const giftsQuerySchema = z
   .object({
-    // Offset-based pagination
+    // Offset-based pagination (deprecated — use cursor + limit instead)
     page: z
       .string()
       .optional()
       .transform((v) => (v !== undefined ? parseInt(v, 10) : 1))
       .pipe(z.number().int().min(1, "page must be ≥ 1")),
 
+    // Shared by both pagination modes
     limit: z
       .string()
       .optional()
@@ -48,9 +49,10 @@ export const giftsQuerySchema = z
 
     status: giftStatusSchema.optional(),
 
-    // Cursor-based pagination (legacy)
-    cursor: z.string().optional(),
+    // Cursor-based pagination
+    cursor: z.string().uuid("cursor must be a valid gift UUID").optional(),
 
+    // Legacy alias for limit in cursor mode
     pageSize: z
       .string()
       .optional()

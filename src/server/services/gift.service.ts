@@ -285,27 +285,38 @@ export interface GiftPageOffset {
 }
 
 /**
- * Returns a cursor-paginated page of gifts for a sender, sorted by creation
- * date descending (newest first).
+ * Returns a cursor-paginated page of gifts for a sender, ordered by gift ID
+ * ascending. Uses `WHERE id > cursor` semantics for stable pagination under
+ * concurrent inserts.
  *
  * @param senderId - The authenticated user's ID.
  * @param cursor - The ID of the last gift from the previous page, or `null` for
  *   the first page.
- * @param limit - Maximum number of gifts to return per page.
+ * @param limit - Maximum number of gifts to return per page (max 100).
+ * @param status - Optional status filter.
  * @returns A {@link GiftPage} containing the gifts, total count, and next cursor.
  */
 export async function getGiftsBySenderPaginated(
   senderId: string,
   cursor: string | null,
-  limit: number
+  limit: number,
+  status?: GiftStatus
 ): Promise<GiftPage> {
-  const all = [...gifts.values()]
-    .filter((g) => g.senderId === senderId && !g.deletedAt)
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  const safeLimit = Math.min(100, Math.max(1, limit));
 
-  const startIndex = cursor ? all.findIndex((g) => g.id === cursor) + 1 : 0;
-  const page = all.slice(startIndex, startIndex + limit);
-  const nextCursor = startIndex + limit < all.length ? page[page.length - 1].id : null;
+  let all = [...gifts.values()]
+    .filter((g) => g.senderId === senderId && !g.deletedAt)
+    .sort((a, b) => (a.id > b.id ? 1 : a.id < b.id ? -1 : 0));
+
+  if (status) {
+    all = all.filter((g) => g.status === status);
+  }
+
+  const startIndex = cursor ? all.findIndex((g) => g.id > cursor) : 0;
+  const effectiveStart = startIndex === -1 ? all.length : startIndex;
+  const page = all.slice(effectiveStart, effectiveStart + safeLimit);
+  const hasMore = effectiveStart + safeLimit < all.length;
+  const nextCursor = hasMore && page.length > 0 ? page[page.length - 1].id : null;
 
   return { gifts: page, total: all.length, nextCursor };
 }

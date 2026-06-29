@@ -58,7 +58,10 @@ export function assertSuccessEnvelope(body: any): void {
 /** Asserts a response body matches the ErrorResponse envelope. */
 export function assertErrorEnvelope(body: any): void {
   expect(body).toMatchObject({ success: false });
-  expect(typeof body.error).toBe('string');
+  expect(typeof body.error).toBe('object');
+  expect(typeof body.error.code).toBe('string');
+  expect(typeof body.error.message).toBe('string');
+  expect(typeof body.error.correlationId).toBe('string');
 }
 
 // ─── Minimal YAML parser ─────────────────────────────────────────────────────

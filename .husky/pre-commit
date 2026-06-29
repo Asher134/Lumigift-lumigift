@@ -6,8 +6,8 @@
 if command -v gitleaks >/dev/null 2>&1; then
   gitleaks protect --staged --config=.gitleaks.toml --redact
 else
-  echo "⚠️  gitleaks not found — skipping secret scan."
+  echo "❌ gitleaks not found — cannot scan for secrets."
   echo "   Install it: https://github.com/gitleaks/gitleaks#installing"
   echo "   Then re-run: git commit"
-  exit 0
+  exit 1
 fi
