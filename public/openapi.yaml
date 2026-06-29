@@ -554,8 +554,46 @@ components:
           type: boolean
           example: false
         error:
+          $ref: "#/components/schemas/ErrorDetail"
+        errors:
+          type: array
+          description: Field-level validation errors (present on 400 validation failures)
+          items:
+            type: object
+            required: [path, message]
+            properties:
+              path:
+                type: string
+                example: "phone"
+              message:
+                type: string
+                example: "Enter a valid phone number"
+
+    ErrorDetail:
+      type: object
+      required: [code, message, correlationId]
+      properties:
+        code:
           type: string
+          description: Machine-readable error code
+          enum:
+            - VALIDATION_ERROR
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - NOT_FOUND
+            - CONFLICT
+            - PAYLOAD_TOO_LARGE
+            - INTERNAL_ERROR
+          example: "UNAUTHORIZED"
+        message:
+          type: string
+          description: Human-readable error message
           example: "Unauthorized"
+        correlationId:
+          type: string
+          format: uuid
+          description: Unique request identifier for tracing
+          example: "550e8400-e29b-41d4-a716-446655440000"
 
     Gift:
       type: object
