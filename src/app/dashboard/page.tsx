@@ -9,10 +9,10 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { GiftCard } from "@/components/gift/GiftCard";
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 import styles from "./page.module.css";
-import type { ApiResponse } from "@/types";
+import type { ApiResponse, Gift } from "@/types";
 import type { GiftPageOffset } from "@/server/services/gift.service";
 
-const DEFAULT_LIMIT = 10;
+const DEFAULT_LIMIT = 20;
 const POLL_INTERVAL_MS = 30_000;
 
 const TERMINAL_STATUSES = new Set(["claimed", "cancelled", "expired"]);
@@ -22,9 +22,9 @@ function hasNonTerminalGifts(data: GiftPageOffset | undefined): boolean {
   return data.data.some((g) => !TERMINAL_STATUSES.has(g.status));
 }
 
-async function fetchGifts(page: number, limit: number, status?: string): Promise<GiftPageOffset> {
+async function fetchGifts(offset: number, limit: number, status?: string): Promise<GiftPageOffset> {
   const query = new URLSearchParams({
-    page: String(page),
+    page: String(Math.floor(offset / limit) + 1),
     limit: String(limit),
   });
   if (status && status !== "all") {
@@ -41,19 +41,43 @@ export default function DashboardPage() {
   const router = useRouter();
   const pathname = usePathname();
   const currentStatus = searchParams.get("status") || "all";
-  const [page, setPage] = useState(1);
+  const [loadedGifts, setLoadedGifts] = useState<Gift[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
-  // Reset page when status changes
+  // Reset when status changes
   useEffect(() => {
-    setPage(1);
+    setLoadedGifts([]);
+    setOffset(0);
+    setHasMore(true);
   }, [currentStatus]);
 
-  const { data, status } = useQuery({
-    queryKey: ["gifts", page, currentStatus],
-    queryFn: () => fetchGifts(page, DEFAULT_LIMIT, currentStatus),
+  const { data: currentPageData, status, refetch } = useQuery({
+    queryKey: ["gifts", offset, currentStatus],
+    queryFn: () => fetchGifts(offset, DEFAULT_LIMIT, currentStatus),
     refetchInterval: (query: { state: { data: GiftPageOffset | undefined } }) =>
       hasNonTerminalGifts(query.state.data) ? POLL_INTERVAL_MS : false,
   });
+
+  // Update accumulated gifts when new page data arrives
+  useEffect(() => {
+    if (!currentPageData) return;
+    if (offset === 0) {
+      setLoadedGifts(currentPageData.data);
+    } else {
+      setLoadedGifts((prev): Gift[] => [...prev, ...currentPageData.data]);
+    }
+    setTotalCount(currentPageData.total);
+    setHasMore(loadedGifts.length + currentPageData.data.length < currentPageData.total);
+    setIsLoadingMore(false);
+  }, [currentPageData]);
+
+  const handleLoadMore = () => {
+    setIsLoadingMore(true);
+    setOffset((prev): number => prev + DEFAULT_LIMIT);
+  };
 
   const handleStatusChange = (newStatus: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -65,7 +89,7 @@ export default function DashboardPage() {
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  if (status === "pending") {
+  if (status === "pending" && loadedGifts.length === 0) {
     return (
       <div className={styles.page}>
         <div className="container">
@@ -80,7 +104,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (status === "error") {
+  if (status === "error" && loadedGifts.length === 0) {
     return (
       <div className={styles.page}>
         <div className="container">
@@ -90,7 +114,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { data: gifts, total, totalPages, counts } = data!;
+  const counts = currentPageData?.counts || { all: 0, pending: 0, claimed: 0, expired: 0 };
 
   const tabs = [
     { id: "all", label: "All", count: counts.all },
@@ -123,7 +147,7 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {gifts.length === 0 ? (
+        {loadedGifts.length === 0 ? (
           <div className={styles.empty}>
             <div className={styles.emptyIconWrapper}>
               <svg
@@ -154,35 +178,31 @@ export default function DashboardPage() {
         ) : (
           <>
             <p className={styles.count}>
-              Showing {(page - 1) * DEFAULT_LIMIT + 1}–{Math.min(page * DEFAULT_LIMIT, total)} of{" "}
-              {total} gifts
+              Showing {loadedGifts.length} of {totalCount} gifts
             </p>
             <div className={styles.grid}>
-              {gifts.map((gift) => (
+              {loadedGifts.map((gift) => (
                 <ErrorBoundary key={gift.id} name={`GiftCard:${gift.id}`}>
                   <GiftCard gift={gift} perspective="sender" />
                 </ErrorBoundary>
               ))}
             </div>
-            <div className={styles.loadMore}>
-              <button
-                className="btn btn--secondary"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                Previous
-              </button>
-              <span>
-                Page {page} of {totalPages}
-              </span>
-              <button
-                className="btn btn--secondary"
-                onClick={() => setPage((p) => p + 1)}
-                disabled={page >= totalPages}
-              >
-                Next
-              </button>
-            </div>
+            {hasMore && (
+              <div className={styles.loadMore}>
+                <button
+                  className="btn btn--primary"
+                  onClick={handleLoadMore}
+                  disabled={isLoadingMore || status === "pending"}
+                >
+                  {isLoadingMore ? "Loading..." : "Load More"}
+                </button>
+              </div>
+            )}
+            {isLoadingMore && (
+              <div className={styles.grid}>
+                <GiftCardSkeleton count={6} />
+              </div>
+            )}
           </>
         )}
       </div>
