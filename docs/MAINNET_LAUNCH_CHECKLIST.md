@@ -20,6 +20,8 @@
 
 ## 2. Smart Contract Deployment
 
+> **Security gates:** Complete the [Contract Mainnet Deployment Checklist](ops/contract-mainnet-checklist.md) before proceeding with contract deployment.
+
 - [ ] Escrow contract compiled with `stellar contract build` (release profile)
 - [ ] Contract deployed to Stellar **mainnet** via `STELLAR_NETWORK=mainnet npm run contract:deploy`
 - [ ] `STELLAR_ESCROW_CONTRACT_ID` updated in production environment

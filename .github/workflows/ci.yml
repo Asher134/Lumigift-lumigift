@@ -399,7 +399,7 @@ jobs:
         working-directory: contracts
         run: |
           cargo install --locked cargo-audit
-          cargo audit
+          cargo audit --deny unmaintained --deny unsound --deny vulnerability
 
   contract-fuzz:
     name: Soroban Contract Fuzz (proptest)

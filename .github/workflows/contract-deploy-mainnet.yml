@@ -58,13 +58,18 @@ jobs:
           retention-days: 7
 
   # ── Manual approval ───────────────────────────────────────────────────────
-  # The "mainnet-deploy" GitHub environment must have a required reviewer
-  # configured under Settings → Environments so this job pauses for approval.
+  # The "mainnet-deploy" GitHub environment MUST have:
+  #   - Required reviewers: at least 2 reviewers configured
+  #   - Deployment protection rules enabled
+  # Configure under Settings → Environments → mainnet-deploy.
+  # See docs/ops/contract-mainnet-checklist.md for the full pre-deployment
+  # security gate checklist that reviewers must verify before approving.
   deploy:
     name: Deploy to Mainnet
     runs-on: ubuntu-latest
     needs: build
-    environment: mainnet-deploy
+    environment:
+      name: mainnet-deploy
     permissions:
       id-token: write   # needed for OIDC → AWS role assumption
       contents: write   # needed to commit the deployment record
