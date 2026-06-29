@@ -25,10 +25,14 @@ tags:
     description: Phone OTP authentication
   - name: Gifts
     description: Gift lifecycle — create, read, cancel, claim
+  - name: GroupGifts
+    description: Group gift pools — create, view, contribute
   - name: Payments
     description: Paystack and Stripe payment webhooks
   - name: Uploads
     description: Media upload helpers
+  - name: Admin
+    description: Admin-only endpoints (ADMIN_SECRET Bearer token required)
   - name: Cron
     description: Internal scheduler endpoints (Bearer token required)
 
@@ -134,7 +138,17 @@ paths:
     get:
       tags: [Gifts]
       summary: List gifts sent by the authenticated user
-      description: Returns a cursor-paginated list of gifts (10 per page).
+      description: |
+        Returns a paginated list of gifts. Two pagination modes are supported:
+
+        **Cursor-based (recommended):** Pass `cursor` and `limit` query params.
+        The response includes a `nextCursor` field (null when no more results).
+        Uses `WHERE id > $cursor ORDER BY id` for stable pagination under
+        concurrent inserts.
+
+        **Offset-based (deprecated):** Pass `page` and `limit` query params.
+        Subject to page drift when new gifts are created. Returns a
+        `Deprecation: true` header. Sunset date: 2027-01-01.
       security:
         - sessionCookie: []
       parameters:
@@ -143,7 +157,33 @@ paths:
           required: false
           schema:
             type: string
-            description: Opaque pagination cursor from the previous response.
+            format: uuid
+            description: ID of the last gift from the previous page. Omit for the first page.
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            description: Maximum number of gifts per page.
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [draft, pending_payment, funded, locked, unlocked, claimed, expired, cancelled]
+            description: Filter by gift status.
+        - name: page
+          in: query
+          required: false
+          deprecated: true
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            description: "(Deprecated) 1-based page number for offset pagination."
       responses:
         "200":
           description: Paginated gift list
@@ -161,9 +201,13 @@ paths:
                             type: array
                             items:
                               $ref: "#/components/schemas/Gift"
+                          total:
+                            type: integer
                           nextCursor:
                             type: string
+                            format: uuid
                             nullable: true
+                            description: Cursor for the next page. Null when there are no more results.
         "401":
           $ref: "#/components/responses/Unauthorized"
     post:
@@ -300,6 +344,143 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/NotFound"
+
+  /api/v1/gifts/group:
+    post:
+      tags: [GroupGifts]
+      summary: Create a group gift pool
+      description: |
+        Creates a group gift that multiple contributors can fund before a deadline.
+        Returns a `shareUrl` that the creator can send to contributors.
+        Requires an active session.
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupGiftRequest"
+      responses:
+        "201":
+          description: Group gift created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [gift, shareUrl]
+                        properties:
+                          gift:
+                            $ref: "#/components/schemas/GroupGift"
+                          shareUrl:
+                            type: string
+                            format: uri
+                            description: Public URL contributors use to view and fund this pool.
+                            example: "https://www.lumigift.com/contribute/abc123def456"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/gifts/group/{id}:
+    get:
+      tags: [GroupGifts]
+      summary: Get a group gift by ID
+      description: Returns the full group gift record including all contributions. Public endpoint — no authentication required.
+      parameters:
+        - $ref: "#/components/parameters/GiftId"
+      responses:
+        "200":
+          description: Group gift found
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/GroupGift"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/gifts/group/{id}/contribute:
+    post:
+      tags: [GroupGifts]
+      summary: Initiate a contribution to a group gift
+      description: |
+        Creates a pending contribution and returns a Paystack payment URL.
+        The contribution is confirmed when Paystack calls the group callback.
+        No authentication required — contributors may not be registered users.
+      parameters:
+        - $ref: "#/components/parameters/GiftId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContributeRequest"
+      responses:
+        "201":
+          description: Contribution initiated — redirect user to paymentUrl
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        required: [contribution, paymentUrl]
+                        properties:
+                          contribution:
+                            $ref: "#/components/schemas/GroupContribution"
+                          paymentUrl:
+                            type: string
+                            format: uri
+                            description: Paystack hosted-page URL to redirect the contributor to.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/v1/gifts/group/callback:
+    get:
+      tags: [GroupGifts]
+      summary: Paystack redirect callback for group contributions
+      description: |
+        Paystack redirects contributors here after a group contribution payment.
+        Verifies payment via `ref` query param, confirms or fails the contribution,
+        and redirects the browser to the appropriate thank-you or error page.
+        This endpoint is called by Paystack's payment page — not by the application directly.
+      parameters:
+        - name: ref
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Paystack payment reference (matches the `paymentReference` on the contribution).
+        - name: giftId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: ID of the group gift being contributed to.
+      responses:
+        "302":
+          description: |
+            Redirect on success: `/contribute/{giftId}/thank-you`
+            Redirect on failure: `/contribute/{giftId}?error=payment_failed`
+            Redirect on bad params: `/error?code=bad_callback`
 
   /api/v1/payments:
     post:
@@ -453,6 +634,47 @@ paths:
                   cloudName:
                     type: string
 
+  /api/v1/admin/queue-stats:
+    get:
+      tags: [Admin]
+      summary: Get BullMQ queue depths and dead letter count
+      description: |
+        Returns current queue depths (waiting, active, completed, failed, delayed)
+        for the Stellar transaction queue, plus the count of unresolved dead-letter
+        records in the `failed_jobs` table.
+      security:
+        - adminBearer: []
+      responses:
+        "200":
+          description: Queue statistics
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          stellarTx:
+                            type: object
+                            properties:
+                              waiting:
+                                type: integer
+                              active:
+                                type: integer
+                              completed:
+                                type: integer
+                              failed:
+                                type: integer
+                              delayed:
+                                type: integer
+                          deadLetterCount:
+                            type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /api/v1/cron/unlock:
     get:
       tags: [Cron]
@@ -503,6 +725,10 @@ components:
       in: cookie
       name: next-auth.session-token
       description: NextAuth.js session cookie obtained after OTP login.
+    adminBearer:
+      type: http
+      scheme: bearer
+      description: Static secret set in `ADMIN_SECRET` environment variable.
     cronBearer:
       type: http
       scheme: bearer
@@ -677,6 +903,129 @@ components:
           type: string
           format: date-time
           description: ISO 8601 datetime when the gift unlocks
+
+    CreateGroupGiftRequest:
+      type: object
+      required: [recipientName, recipientPhone, targetAmountNgn, deadline, unlockAt]
+      properties:
+        recipientName:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "Temi Adeyemi"
+        recipientPhone:
+          type: string
+          description: Recipient phone in E.164 format.
+          example: "+2348098765432"
+        targetAmountNgn:
+          type: number
+          minimum: 500
+          description: Fundraising target in Nigerian Naira.
+          example: 50000
+        deadline:
+          type: string
+          format: date-time
+          description: ISO 8601 datetime after which contributions are no longer accepted.
+          example: "2026-12-01T23:59:59Z"
+        unlockAt:
+          type: string
+          format: date-time
+          description: ISO 8601 datetime when the pooled gift unlocks for the recipient.
+          example: "2026-12-25T00:00:00Z"
+        message:
+          type: string
+          maxLength: 280
+          nullable: true
+          example: "Happy birthday from all of us!"
+
+    ContributeRequest:
+      type: object
+      required: [contributorName, amountNgn]
+      properties:
+        contributorName:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: "Kola Balogun"
+        contributorPhone:
+          type: string
+          description: Contributor phone in E.164 format (optional).
+          example: "+2348011223344"
+          nullable: true
+        amountNgn:
+          type: number
+          minimum: 100
+          description: Contribution amount in Nigerian Naira.
+          example: 5000
+
+    GroupGift:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        creatorId:
+          type: string
+          format: uuid
+        recipientName:
+          type: string
+        recipientPhone:
+          type: string
+        targetAmountNgn:
+          type: number
+        collectedAmountNgn:
+          type: number
+        message:
+          type: string
+          nullable: true
+        unlockAt:
+          type: string
+          format: date-time
+        deadline:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, funded, locked, claimed, expired, cancelled]
+        shareToken:
+          type: string
+          description: Opaque token used to construct the public contributor share URL.
+        contributions:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupContribution"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    GroupContribution:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        groupGiftId:
+          type: string
+          format: uuid
+        contributorName:
+          type: string
+        contributorPhone:
+          type: string
+          nullable: true
+        amountNgn:
+          type: number
+        paymentReference:
+          type: string
+          description: Paystack payment reference for this contribution.
+        status:
+          type: string
+          enum: [pending, confirmed, failed]
+        createdAt:
+          type: string
+          format: date-time
 
   responses:
     BadRequest:

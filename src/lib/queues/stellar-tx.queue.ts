@@ -10,6 +10,7 @@ import { Queue, Worker, Job } from "bullmq";
 import { sendUsdcPayment, validateStellarAccount } from "@/lib/stellar";
 import { updateGiftStatus, storeClaimTxHash, getGiftById } from "@/server/services/gift.service";
 import { logger } from "@/lib/logger";
+import pool from "@/lib/db";
 
 export const STELLAR_TX_QUEUE = "stellar-tx";
 
@@ -37,7 +38,7 @@ export function getStellarTxQueue(): Queue {
     _queue = new Queue(STELLAR_TX_QUEUE, {
       connection: redisConnection,
       defaultJobOptions: {
-        attempts: 5,
+        attempts: 3,
         backoff: { type: "exponential", delay: 2_000 },
         removeOnComplete: 100,
         removeOnFail: 200,
@@ -67,7 +68,7 @@ export async function enqueueClaim(
 // ─── Worker (run in a separate process or Next.js instrumentation hook) ───────
 
 export function createStellarTxWorker(): Worker {
-  return new Worker(
+  const worker = new Worker(
     STELLAR_TX_QUEUE,
     async (job: Job<StellarTxJobData>) => {
       const { type, giftId, recipientStellarKey } = job.data;
@@ -106,4 +107,51 @@ export function createStellarTxWorker(): Worker {
       concurrency: 3,
     }
   );
+
+  worker.on("failed", async (job, err) => {
+    if (!job) return;
+    const isTerminal = job.attemptsMade >= (job.opts.attempts ?? 3);
+    if (!isTerminal) return;
+
+    logger.error(
+      { jobId: job.id, giftId: (job.data as StellarTxJobData).giftId, err: err.message, attemptsMade: job.attemptsMade },
+      "stellar-tx worker: job exhausted retries — writing to dead letter table"
+    );
+
+    try {
+      await pool.query(
+        `INSERT INTO failed_jobs (queue_name, job_id, job_name, job_data, error_message, attempts_made)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (queue_name, job_id) DO UPDATE
+           SET error_message = EXCLUDED.error_message,
+               attempts_made = EXCLUDED.attempts_made,
+               failed_at     = now()`,
+        [STELLAR_TX_QUEUE, job.id, job.name, JSON.stringify(job.data), err.message, job.attemptsMade]
+      );
+    } catch (dbErr) {
+      logger.error({ jobId: job.id, dbErr }, "stellar-tx worker: failed to write dead letter record");
+    }
+  });
+
+  return worker;
+}
+
+export interface QueueStats {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+}
+
+export async function getQueueStats(): Promise<QueueStats> {
+  const queue = getStellarTxQueue();
+  const [waiting, active, completed, failed, delayed] = await Promise.all([
+    queue.getWaitingCount(),
+    queue.getActiveCount(),
+    queue.getCompletedCount(),
+    queue.getFailedCount(),
+    queue.getDelayedCount(),
+  ]);
+  return { waiting, active, completed, failed, delayed };
 }
