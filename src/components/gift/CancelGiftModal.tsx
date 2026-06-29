@@ -31,7 +31,7 @@ export function CancelGiftModal({ giftId, onClose, onSuccess }: CancelGiftModalP
       const data: ApiResponse<any> = await res.json();
 
       if (!data.success) {
-        throw new Error(data.error || "Failed to cancel gift");
+        throw new Error((typeof data.error === "string" ? data.error : data.error?.message) || "Failed to cancel gift");
       }
 
       addToast("Gift cancelled successfully", "success");

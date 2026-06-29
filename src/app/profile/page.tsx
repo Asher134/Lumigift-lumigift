@@ -19,7 +19,7 @@ type ProfileData = { stats: ProfileStats; gifts: Gift[] };
 async function fetchProfile(): Promise<ProfileData> {
   const res = await fetch("/api/v1/profile");
   const json: ApiResponse<ProfileData> = await res.json();
-  if (!json.success) throw new Error(json.error);
+  if (!json.success) throw new Error(typeof json.error === "string" ? json.error : json.error.message);
   return json.data;
 }
 

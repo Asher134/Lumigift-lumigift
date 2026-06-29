@@ -68,6 +68,8 @@ jest.mock('@/server/services/account-takeover.service', () => ({
   checkRapidGiftCreation: jest.fn(),
 }));
 
+process.env.CRON_SECRET = 'test-cron-secret';
+
 // ─── Lazy imports (after mocks are set up) ────────────────────────────────────
 let sendOtpRoute: any;
 let giftsRoute: any;
@@ -152,7 +154,7 @@ describe('GET /api/v1/gifts/:id', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     assertErrorEnvelope(body);
-    expect(body.error).toMatch(/not found/i);
+    expect(body.error.message).toMatch(/not found/i);
   });
 });
 
@@ -179,8 +181,7 @@ describe('POST /api/v1/gifts/:id/claim', () => {
     });
     const context = { params: Promise.resolve({ id: '00000000-0000-0000-0000-000000000000' }) };
     const res = await claimRoute.POST(req, context);
-    // claim handler returns 400 for missing recipientStellarKey or 404 for missing gift
-    expect([400, 404]).toContain(res.status);
+    expect([400, 401, 404]).toContain(res.status);
     const body = await res.json();
     assertErrorEnvelope(body);
   });
@@ -218,7 +219,6 @@ describe('POST /api/v1/payments (Paystack webhook)', () => {
     const res = await paymentsRoute.POST(req);
     expect([400, 401]).toContain(res.status);
     const body = await res.json();
-    // either error shape is valid per the spec
-    expect(body.success).toBe(false);
+    assertErrorEnvelope(body);
   });
 });

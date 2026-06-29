@@ -168,6 +168,15 @@ docker-compose -f docker-compose.dev.yml up
 - `docker-compose.yml` - Production build with multi-stage optimization
 - `docker-compose.dev.yml` - Development mode with hot reload and volume mounts
 
+**Redis Persistence:**
+
+Both compose files run Redis with AOF (Append Only File) persistence enabled on master and replica. This ensures OTPs, session data, and rate-limit state survive container restarts. Data is stored in named Docker volumes (`redis-data`, `redis-replica-data`).
+
+Trade-offs:
+- AOF provides durability at the cost of slightly higher write latency and disk usage
+- `docker-compose down -v` will destroy persisted data — use this intentionally to reset state
+- In production, consider tuning `appendfsync` (default `everysec`) based on your durability vs. throughput needs
+
 ### Manual Installation
 
 If you prefer not to use Docker:

@@ -46,8 +46,11 @@ services:
     command: >
       redis-server
       --replicaof redis 6379
+      --appendonly yes
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-replica-data:/data
     depends_on:
       - redis
     networks:
@@ -215,6 +218,7 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  redis-replica-data:
 
 networks:
   lumigift-network:
