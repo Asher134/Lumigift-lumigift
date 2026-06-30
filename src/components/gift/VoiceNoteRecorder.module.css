@@ -1,3 +1,13 @@
+/* Visually hidden — readable by screen readers only */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
 .wrapper {
   display: flex;
   flex-direction: column;
@@ -103,4 +113,30 @@
 .discardBtn:hover {
   color: var(--color-error);
   border-color: var(--color-error);
+}
+
+/* Graceful degradation message */
+.unsupported {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Amplitude visualizer */
+.amplitudeBars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+}
+
+.amplitudeBar {
+  display: block;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--color-error);
+  height: 22px; /* reference height; scaleY controls visible height */
+  transform-origin: center bottom;
+  transform: scaleY(var(--bar-scale, 0.15));
+  transition: transform 0.08s ease-out;
 }
