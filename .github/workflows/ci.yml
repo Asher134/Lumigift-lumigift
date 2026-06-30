@@ -260,6 +260,16 @@ jobs:
 
       - run: npm ci
 
+      - name: Check for duplicate migration numbers
+        run: |
+          DUPES=$(ls migrations/*.sql | sed 's|migrations/||' | grep -oE '^[0-9]+' | sort | uniq -d)
+          if [ -n "$DUPES" ]; then
+            echo "❌ Duplicate migration numbers detected: $DUPES"
+            echo "Each migration must have a unique sequential prefix."
+            exit 1
+          fi
+          echo "✅ No duplicate migration numbers found."
+
       - name: Run database migrations
         run: npm run db:migrate
         env:
