@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { GIFT_TEMPLATES, BLANK_TEMPLATE, type GiftTemplate } from "@/lib/giftTemplates";
 import styles from "./TemplateSelector.module.css";
 
@@ -20,7 +21,18 @@ export function TemplateSelector({ onSelect }: TemplateSelectorProps) {
             className={styles.card}
             onClick={() => onSelect(tpl)}
           >
-            <span className={styles.emoji}>{tpl.emoji}</span>
+            {tpl.image ? (
+              <Image
+                src={tpl.image}
+                alt={`${tpl.occasion} gift template preview`}
+                width={80}
+                height={80}
+                loading="lazy"
+                className={styles.previewImage}
+              />
+            ) : (
+              <span className={styles.emoji} aria-hidden="true">{tpl.emoji}</span>
+            )}
             <span className={styles.label}>{tpl.occasion}</span>
           </button>
         ))}
