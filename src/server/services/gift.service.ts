@@ -177,8 +177,16 @@ export async function createGift(
     }
   }
 
+  // Fetch the sender's real email from the DB for proper Paystack customer records.
+  // Falls back to a placeholder only if the user has no email on file (e.g. phone-only accounts).
+  const { rows: emailRows } = await pool.query<{ email: string | null }>(
+    "SELECT email FROM users WHERE id = $1",
+    [senderId]
+  );
+  const senderEmail = emailRows[0]?.email ?? `${senderId}@lumigift.app`;
+
   const payment = await initializePayment({
-    email: `${senderId}@lumigift.app`, // placeholder; use real email from user record
+    email: senderEmail,
     amountKobo: ngnToKobo(input.amountNgn),
     reference: `lumigift_${id}`,
     callbackUrl: `${serverConfig.app.url}/api/payments/callback?giftId=${id}`,
