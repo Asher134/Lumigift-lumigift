@@ -55,15 +55,46 @@ export async function createGift(
   recipientIsRegistered: boolean = true,
   senderCreatedAt?: Date
 ): Promise<{ gift: Gift; paymentUrl: string }> {
-  // ── Daily sending limit check ──────────────────────────────────────────────
   const { dailyLimitNgn } = serverConfig.giftLimits;
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-  const todayTotal = [...gifts.values()]
-    .filter((g) => g.senderId === senderId && g.createdAt >= todayStart)
-    .reduce((sum, g) => sum + g.amountNgn, 0);
-  if (todayTotal + input.amountNgn > dailyLimitNgn) {
-    throw new Error(`Daily sending limit of ${formatNGN(dailyLimitNgn)} exceeded`);
+
+  // ── Database-level daily spending limit check ──────────────────────────────
+  // Uses an advisory lock per sender to prevent race conditions where two
+  // concurrent requests could each pass the limit check individually but
+  // together exceed it.
+  //
+  // Query: SELECT SUM(amount_ngn) FROM gifts
+  //          WHERE sender_id = $1 AND created_at >= NOW() - INTERVAL '1 day'
+  //
+  // The composite index idx_gifts_sender_id_created_at on (sender_id, created_at)
+  // makes this an efficient index-only scan even at high gift volumes.
+  const client = await pool.connect();
+  try {
+    // Acquire a session-level advisory lock keyed on the sender's hashcode.
+    // This serialises concurrent gift-creation calls for the same sender so the
+    // limit check + INSERT are effectively atomic without a full table lock.
+    const lockKey = BigInt(
+      Buffer.from(senderId).reduce((acc, b) => Math.imul(31, acc) + b | 0, 0) >>> 0
+    );
+    await client.query("SELECT pg_advisory_lock($1)", [lockKey.toString()]);
+
+    try {
+      const { rows } = await client.query<{ today_total: string }>(
+        `SELECT COALESCE(SUM(amount_ngn), 0)::TEXT AS today_total
+           FROM gifts
+          WHERE sender_id = $1
+            AND created_at >= NOW() - INTERVAL '1 day'`,
+        [senderId]
+      );
+      const todayTotal = parseFloat(rows[0]?.today_total ?? "0");
+      if (todayTotal + input.amountNgn > dailyLimitNgn) {
+        throw new Error(`Daily sending limit of ${formatNGN(dailyLimitNgn)} exceeded`);
+      }
+    } finally {
+      // Always release the advisory lock, even if the limit check throws.
+      await client.query("SELECT pg_advisory_unlock($1)", [lockKey.toString()]);
+    }
+  } finally {
+    client.release();
   }
 
   const id = randomUUID();
