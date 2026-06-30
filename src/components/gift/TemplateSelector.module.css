@@ -57,3 +57,10 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.previewImage {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+}

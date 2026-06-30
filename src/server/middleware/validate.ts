@@ -13,14 +13,11 @@
 
 import { NextResponse } from "next/server";
 import { z, ZodError, ZodSchema } from "zod";
+import { getCorrelationId } from "@/lib/logger";
 import type { ApiValidationError } from "@/types";
 
 // ─── Error formatting ─────────────────────────────────────────────────────────
 
-/**
- * Converts a ZodError into a flat array of `{ path, message }` objects
- * suitable for structured API error responses.
- */
 export function formatZodErrors(
   error: ZodError
 ): Array<{ path: string; message: string }> {
@@ -30,27 +27,17 @@ export function formatZodErrors(
   }));
 }
 
-/**
- * Builds a 400 NextResponse with structured Zod validation errors.
- *
- * Response shape:
- * ```json
- * {
- *   "success": false,
- *   "error": "Validation failed",
- *   "errors": [{ "path": "phone", "message": "Enter a valid phone number" }]
- * }
- * ```
- */
-export function validationErrorResponse(error: ZodError): NextResponse<ApiValidationError> {
-  return NextResponse.json<ApiValidationError>(
+export function validationErrorResponse(error: ZodError, correlationId = "unknown"): NextResponse<ApiValidationError> {
+  const res = NextResponse.json<ApiValidationError>(
     {
       success: false,
-      error: "Validation failed",
+      error: { code: "VALIDATION_ERROR" as const, message: "Validation failed" as const, correlationId },
       errors: formatZodErrors(error),
     },
     { status: 400 }
   );
+  res.headers.set("x-correlation-id", correlationId);
+  return res;
 }
 
 // ─── Discriminated-union result type ─────────────────────────────────────────
@@ -81,11 +68,12 @@ type ValidationResult<T> = ValidationSuccess<T> | ValidationFailure;
  */
 export function validateRequest<TSchema extends ZodSchema>(
   schema: TSchema,
-  input: unknown
+  input: unknown,
+  correlationId?: string
 ): ValidationResult<z.infer<TSchema>> {
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
-    return { success: false, errorResponse: validationErrorResponse(parsed.error) };
+    return { success: false, errorResponse: validationErrorResponse(parsed.error, correlationId) };
   }
   return { success: true, data: parsed.data };
 }

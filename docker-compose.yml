@@ -21,18 +21,75 @@ services:
       - lumigift-network
 
   redis-replica:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --replicaof redis 6379
+      --appendonly yes
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-replica-data:/data
+    depends_on:
+      - redis
     networks:
       - lumigift-network
 
   redis-sentinel-1:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-sentinel
+      --sentinel monitor mymaster redis 6379 2
+      --sentinel down-after-milliseconds mymaster 5000
+      --sentinel failover-timeout mymaster 60000
+      --sentinel parallel-syncs mymaster 1
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lumigift-network
 
   redis-sentinel-2:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-sentinel
+      --sentinel monitor mymaster redis 6379 2
+      --sentinel down-after-milliseconds mymaster 5000
+      --sentinel failover-timeout mymaster 60000
+      --sentinel parallel-syncs mymaster 1
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lumigift-network
 
   redis-sentinel-3:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-sentinel
+      --sentinel monitor mymaster redis 6379 2
+      --sentinel down-after-milliseconds mymaster 5000
+      --sentinel failover-timeout mymaster 60000
+      --sentinel parallel-syncs mymaster 1
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "26379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - lumigift-network
 
@@ -74,12 +131,24 @@ services:
       - CLOUDINARY_CLOUD_NAME=${CLOUDINARY_CLOUD_NAME:-}
       - CLOUDINARY_API_KEY=${CLOUDINARY_API_KEY:-}
       - CLOUDINARY_API_SECRET=${CLOUDINARY_API_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redis-sentinel-1:
+        condition: service_healthy
+      redis-sentinel-2:
+        condition: service_healthy
+      redis-sentinel-3:
+        condition: service_healthy
     networks:
       - lumigift-network
 
 volumes:
   postgres-data:
   redis-data:
+  redis-replica-data:
 
 networks:
   lumigift-network:

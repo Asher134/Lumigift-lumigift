@@ -1,0 +1,47 @@
+{
+  "family": "lumigift-worker-prod",
+  "networkMode": "awsvpc",
+  "executionRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/lumigift-prod-ecs-execution",
+  "taskRoleArn": "arn:aws:iam::<AWS_ACCOUNT_ID>:role/lumigift-prod-ecs-task",
+  "containerDefinitions": [
+    {
+      "name": "worker",
+      "image": "<IMAGE_NAME>",
+      "command": ["node", "--require", "ts-node/register", "scripts/queue-worker.ts"],
+      "essential": true,
+      "environment": [
+        {
+          "name": "NODE_ENV",
+          "value": "production"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "DATABASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:<AWS_REGION>:<AWS_ACCOUNT_ID>:secret:lumigift/prod/DATABASE_URL"
+        },
+        {
+          "name": "REDIS_URL",
+          "valueFrom": "arn:aws:secretsmanager:<AWS_REGION>:<AWS_ACCOUNT_ID>:secret:lumigift/prod/REDIS_URL"
+        },
+        {
+          "name": "STELLAR_SERVER_SECRET_KEY",
+          "valueFrom": "arn:aws:secretsmanager:<AWS_REGION>:<AWS_ACCOUNT_ID>:secret:lumigift/prod/STELLAR_SERVER_SECRET_KEY"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/lumigift-worker-prod",
+          "awslogs-region": "<AWS_REGION>",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ],
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "512",
+  "memory": "1024"
+}

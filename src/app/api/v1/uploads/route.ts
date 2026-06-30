@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import type { ApiResponse } from "@/types";
+import { withErrorHandler } from "@/server/middleware";
+
+const UPLOAD_BODY_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
-const MAX_AUDIO_BYTES = 4 * 1024 * 1024; // 4 MB (~30s at 128 kbps)
+const MAX_AUDIO_BYTES = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const ALLOWED_AUDIO_TYPES = new Set(["audio/webm", "audio/mp4", "audio/ogg", "audio/wav"]);
 const IMAGE_FOLDER = "gift-media";
@@ -22,7 +25,7 @@ function sign(params: Record<string, string | number>): string {
     .digest("hex");
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withErrorHandler(async (req: NextRequest) => {
   let formData: FormData;
   try {
     formData = await req.formData();
@@ -55,7 +58,7 @@ export async function POST(req: NextRequest) {
   }
 
   const maxBytes = isAudio ? MAX_AUDIO_BYTES : MAX_IMAGE_BYTES;
-  const sizeLabel = isAudio ? "4 MB" : "5 MB";
+  const sizeLabel = isAudio ? "10 MB" : "5 MB";
   if (file.size > maxBytes) {
     return NextResponse.json<ApiResponse<never>>(
       { success: false, error: `File exceeds the ${sizeLabel} size limit` },
@@ -99,4 +102,4 @@ export async function POST(req: NextRequest) {
     success: true,
     data: { url: data.secure_url, publicId: data.public_id },
   });
-}
+}, { bodySizeLimit: UPLOAD_BODY_SIZE_LIMIT });

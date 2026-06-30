@@ -29,6 +29,7 @@ jobs:
   lint-and-type-check:
     name: Lint & Type Check
     runs-on: ubuntu-latest
+    needs: [secret-scan]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -54,6 +55,7 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    needs: [secret-scan]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -249,14 +251,24 @@ jobs:
     env:
       TEST_DATABASE_URL: postgresql://lumigift:lumigift@localhost:5432/lumigift_test
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 20
           cache: npm
 
       - run: npm ci
+
+      - name: Check for duplicate migration numbers
+        run: |
+          DUPES=$(ls migrations/*.sql | sed 's|migrations/||' | grep -oE '^[0-9]+' | sort | uniq -d)
+          if [ -n "$DUPES" ]; then
+            echo "❌ Duplicate migration numbers detected: $DUPES"
+            echo "Each migration must have a unique sequential prefix."
+            exit 1
+          fi
+          echo "✅ No duplicate migration numbers found."
 
       - name: Run database migrations
         run: npm run db:migrate
@@ -307,9 +319,9 @@ jobs:
       REDIS_URL: redis://localhost:6379
       CRON_SECRET: ci-cron-secret-placeholder
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 20
           cache: npm
@@ -337,7 +349,7 @@ jobs:
 
       - name: Upload snapshot diff on failure
         if: failure()
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: visual-snapshot-diff
           path: e2e/visual/__snapshots__/
@@ -346,6 +358,7 @@ jobs:
   license-check:
     name: License Audit
     runs-on: ubuntu-latest
+    needs: [secret-scan]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -376,6 +389,7 @@ jobs:
   contract-test:
     name: Soroban Contract Tests
     runs-on: ubuntu-latest
+    needs: [secret-scan]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -395,11 +409,12 @@ jobs:
         working-directory: contracts
         run: |
           cargo install --locked cargo-audit
-          cargo audit
+          cargo audit --deny unmaintained --deny unsound --deny vulnerability
 
   contract-fuzz:
     name: Soroban Contract Fuzz (proptest)
     runs-on: ubuntu-latest
+    needs: [secret-scan]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -413,6 +428,8 @@ jobs:
 
       - name: Run proptest fuzz tests
         working-directory: contracts
+        env:
+          PROPTEST_MAX_TIME: "60" # Run for at least 60 seconds
         run: cargo test --test-threads=4 fuzz_
 
   contract-build:
@@ -467,17 +484,17 @@ jobs:
     runs-on: ubuntu-latest
     needs: [contract-build]
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: wasm32-unknown-unknown
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae # v2
         with:
           workspaces: contracts
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 20
           cache: npm
@@ -555,3 +572,39 @@ jobs:
 
       - name: Run OWASP security regression tests
         run: npm test -- --testPathPattern="security/owasp" --passWithNoTests
+
+  contract-integration-test:
+    name: Contract Integration Test (Testnet)
+    runs-on: ubuntu-latest
+    needs: [contract-build]
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1 (stable)
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          workspaces: contracts
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Stellar CLI
+        run: cargo install --locked stellar-cli --features opt
+
+      - name: Build WASM
+        run: npm run contract:build
+
+      - name: Run integration tests
+        run: bash scripts/contract-integration-test.sh
+        env:
+          STELLAR_NETWORK: testnet
+          STELLAR_RPC_URL: https://soroban-testnet.stellar.org
+          STELLAR_NETWORK_PASSPHRASE: "Test SDF Network ; September 2015"

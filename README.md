@@ -49,6 +49,8 @@ Lumigift is a full-stack gifting platform that enables users to send cash gifts 
                                           └─────────────────┘
 ```
 
+For a detailed view of the async job pipeline (HTTP → BullMQ → Stellar → event indexer), see [docs/architecture/bullmq-job-flow.md](docs/architecture/bullmq-job-flow.md).
+
 ### Tech Stack
 
 | Layer       | Technology                                       |
@@ -175,6 +177,15 @@ Staging mirrors the production Redis Sentinel topology (1 primary, 1 replica, 3 
 
 A CI workflow (`.github/workflows/compose-parity.yml`) runs on every PR that touches any `docker-compose*.yml` file and fails if staging is missing a Sentinel service or the service lists diverge from production.
 
+**Redis Persistence:**
+
+Both compose files run Redis with AOF (Append Only File) persistence enabled on master and replica. This ensures OTPs, session data, and rate-limit state survive container restarts. Data is stored in named Docker volumes (`redis-data`, `redis-replica-data`).
+
+Trade-offs:
+- AOF provides durability at the cost of slightly higher write latency and disk usage
+- `docker-compose down -v` will destroy persisted data — use this intentionally to reset state
+- In production, consider tuning `appendfsync` (default `everysec`) based on your durability vs. throughput needs
+
 ### Manual Installation
 
 If you prefer not to use Docker:
@@ -187,10 +198,30 @@ npm install
 # Set up PostgreSQL
 createdb lumigift
 psql lumigift < migrations/0001_add_stellar_tx_hash.sql
-psql lumigift < migrations/0002_add_device_tracking.sql
 psql lumigift < migrations/0002_normalize_phone_e164.sql
-psql lumigift < migrations/0003_hash_recipient_phone.sql
+psql lumigift < migrations/0003_add_device_tracking.sql
 psql lumigift < migrations/0004_gift_invitations.sql
+psql lumigift < migrations/0005_hash_recipient_phone.sql
+psql lumigift < migrations/0006_add_gift_indexes.sql
+psql lumigift < migrations/0007_add_group_gifts.sql
+psql lumigift < migrations/0008_audit_logs.sql
+psql lumigift < migrations/0009_add_refresh_tokens.sql
+psql lumigift < migrations/0010_add_wishlists.sql
+psql lumigift < migrations/0011_create_claim_audit_log.sql
+psql lumigift < migrations/0012_fraud_detection.sql
+psql lumigift < migrations/0013_soft_delete_gifts.sql
+psql lumigift < migrations/0014_occasion_and_scheduling.sql
+psql lumigift < migrations/0015_account_takeover_protection.sql
+psql lumigift < migrations/0016_data_deletion_requests.sql
+psql lumigift < migrations/0017_onboarding_tracking.sql
+psql lumigift < migrations/0018_notifications.sql
+psql lumigift < migrations/0019_legal_documents.sql
+psql lumigift < migrations/0020_push_notifications.sql
+psql lumigift < migrations/0021_processed_stripe_events.sql
+psql lumigift < migrations/0022_exchange_rates.sql
+psql lumigift < migrations/0023_enhanced_gift_indexes.sql
+psql lumigift < migrations/0024_rehash_phone_hmac.sql
+psql lumigift < migrations/0025_failed_jobs.sql
 
 # Set up Redis
 redis-server

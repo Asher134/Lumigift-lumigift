@@ -4,24 +4,22 @@ import { authOptions } from "@/lib/auth";
 import { getGiftById, cancelGift, softDeleteGift } from "@/server/services/gift.service";
 import { createAuditLog } from "@/server/services/audit.service";
 import { refundPayment } from "@/lib/paystack";
-import { withErrorHandler, withCsrf, validateRequest } from "@/server/middleware";
+import { withErrorHandler, withCsrf, createErrorResponse, validateRequest } from "@/server/middleware";
+import { getCorrelationId } from "@/lib/logger";
 import { giftIdParamSchema } from "@/lib/schemas";
 import type { ApiResponse, Gift } from "@/types";
 
 export const GET = withErrorHandler(
   async (_req: NextRequest, context: any) => {
-    // ── Validate path param ────────────────────────────────────────────────
+    const correlationId = getCorrelationId(_req.headers);
     const params = await context.params;
-    const paramValidation = validateRequest(giftIdParamSchema, params);
+    const paramValidation = validateRequest(giftIdParamSchema, params, correlationId);
     if (!paramValidation.success) return paramValidation.errorResponse;
 
     const gift = await getGiftById(paramValidation.data.id);
 
     if (!gift) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Gift not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("NOT_FOUND", "Gift not found", correlationId, 404);
     }
 
     // Strip sensitive sender info for public claim page
@@ -44,48 +42,33 @@ export const GET = withErrorHandler(
 
 export const DELETE = withErrorHandler(
   withCsrf(async (_req: NextRequest, context: any) => {
+    const correlationId = getCorrelationId(_req.headers);
     const session = await getServerSession(authOptions);
     if (!session?.user) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Unauthorized" },
-        { status: 401 }
-      );
+      return createErrorResponse("UNAUTHORIZED", "Unauthorized", correlationId, 401);
     }
 
-    // ── Validate path param ──────────────────────────────────────────────
     const params = await context.params;
-    const paramValidation = validateRequest(giftIdParamSchema, params);
+    const paramValidation = validateRequest(giftIdParamSchema, params, correlationId);
     if (!paramValidation.success) return paramValidation.errorResponse;
 
     const gift = await getGiftById(paramValidation.data.id);
 
     if (!gift) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Gift not found" },
-        { status: 404 }
-      );
+      return createErrorResponse("NOT_FOUND", "Gift not found", correlationId, 404);
     }
 
     const userId = (session.user as { id: string }).id;
     if (gift.senderId !== userId) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Forbidden" },
-        { status: 403 }
-      );
+      return createErrorResponse("FORBIDDEN", "Forbidden", correlationId, 403);
     }
 
     if (gift.status !== "locked" && gift.status !== "pending_payment") {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Gift cannot be cancelled in its current state" },
-        { status: 409 }
-      );
+      return createErrorResponse("CONFLICT", "Gift cannot be cancelled in its current state", correlationId, 409);
     }
 
     if (new Date() >= gift.unlockAt) {
-      return NextResponse.json<ApiResponse<never>>(
-        { success: false, error: "Gift unlock time has already passed" },
-        { status: 409 }
-      );
+      return createErrorResponse("CONFLICT", "Gift unlock time has already passed", correlationId, 409);
     }
 
     // Trigger Paystack refund (reference convention matches gift creation)

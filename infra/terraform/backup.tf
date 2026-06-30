@@ -178,3 +178,93 @@ resource "aws_cloudwatch_log_metric_filter" "backup_success" {
     value     = "1"
   }
 }
+
+# ─── Cross-region replication (DR) ───────────────────────────────────────────
+
+provider "aws" {
+  alias  = "dr"
+  region = var.backup_region
+}
+
+# Replica bucket in the DR region
+resource "aws_s3_bucket" "backup_replica" {
+  provider      = aws.dr
+  bucket        = "lumigift-${var.env}-db-backups-replica"
+  force_destroy = var.env != "prod"
+  tags          = local.tags
+}
+
+resource "aws_s3_bucket_versioning" "backup_replica" {
+  provider = aws.dr
+  bucket   = aws_s3_bucket.backup_replica.id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_public_access_block" "backup_replica" {
+  provider                = aws.dr
+  bucket                  = aws_s3_bucket.backup_replica.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# IAM role that S3 uses to replicate objects
+resource "aws_iam_role" "backup_replication" {
+  name = "lumigift-${var.env}-backup-replication"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { Service = "s3.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+
+  tags = local.tags
+}
+
+resource "aws_iam_role_policy" "backup_replication" {
+  name = "replication-policy"
+  role = aws_iam_role.backup_replication.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetReplicationConfiguration", "s3:ListBucket"]
+        Resource = aws_s3_bucket.backup.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObjectVersionForReplication", "s3:GetObjectVersionAcl", "s3:GetObjectVersionTagging"]
+        Resource = "${aws_s3_bucket.backup.arn}/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ReplicateObject", "s3:ReplicateDelete", "s3:ReplicateTags"]
+        Resource = "${aws_s3_bucket.backup_replica.arn}/*"
+      }
+    ]
+  })
+}
+
+# Replication configuration on the source bucket
+resource "aws_s3_bucket_replication_configuration" "backup" {
+  bucket = aws_s3_bucket.backup.id
+  role   = aws_iam_role.backup_replication.arn
+
+  rule {
+    id     = "replicate-to-dr-region"
+    status = "Enabled"
+
+    destination {
+      bucket        = aws_s3_bucket.backup_replica.arn
+      storage_class = "STANDARD_IA"
+    }
+  }
+
+  depends_on = [aws_s3_bucket_versioning.backup]
+}
