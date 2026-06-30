@@ -8,13 +8,14 @@ import pool from "@/lib/db";
  * @param giftId - The UUID of the gift.
  * @param recipientPhoneHash - The SHA256 hash of the recipient's phone number.
  * @param recipientPhone - The E.164-formatted recipient phone number (for creating invitation link).
- * @returns The invitation token string.
+ * @returns An object containing the invitation `token` and the DB record `invitationId`.
+ *   The `invitationId` is needed to record `sms_failed_at` on SMS retry exhaustion (#580).
  */
 export async function createGiftInvitation(
   giftId: string,
   recipientPhoneHash: string,
   recipientPhone: string
-): Promise<string> {
+): Promise<{ token: string; invitationId: string }> {
   const invitationId = randomBytes(16).toString("hex");
   const token = randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
@@ -30,7 +31,7 @@ export async function createGiftInvitation(
     expiresAt,
   ]);
 
-  return token;
+  return { token, invitationId };
 }
 
 /**

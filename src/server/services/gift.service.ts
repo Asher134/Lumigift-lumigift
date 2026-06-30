@@ -10,6 +10,7 @@ import { serverConfig } from "@/server/config";
 import { assertValidTransition } from "./gift-state-machine";
 import { createGiftInvitation } from "./invitation.service";
 import { sendGiftInvitation } from "@/lib/sms";
+import { enqueueSmsRetry } from "@/lib/queues/sms-retry.queue";
 import { sendGiftReceivedEmail } from "@/lib/email";
 import { stripHtmlTags } from "@/lib/sanitize";
 import { createAuditLog } from "./audit.service";
@@ -154,7 +155,7 @@ export async function createGift(
   // If recipient is unregistered, create an invitation and send SMS
   if (!recipientIsRegistered) {
     try {
-      const invitationToken = await createGiftInvitation(
+      const { token: invitationToken, invitationId } = await createGiftInvitation(
         id,
         recipientPhoneHash,
         input.recipientPhone
@@ -167,9 +168,16 @@ export async function createGift(
       );
       const senderName = rows[0]?.display_name || "Someone";
 
-      // Send invitation SMS (fire-and-forget to not block payment flow)
-      sendGiftInvitation(input.recipientPhone, invitationToken, senderName).catch((err) =>
-        console.error("[gift] sendGiftInvitation failed:", err)
+      // Enqueue SMS via BullMQ (3 attempts with exponential backoff).
+      // Non-blocking: failures are retried by the worker; sms_failed_at is
+      // recorded in DB after all retries are exhausted (issue #580).
+      enqueueSmsRetry({
+        recipientPhone: input.recipientPhone,
+        invitationToken,
+        senderName,
+        invitationId,
+      }).catch((err) =>
+        log.error({ err, invitationId }, "[gift] failed to enqueue SMS retry job")
       );
     } catch (err) {
       console.error("[gift] Failed to create/send invitation:", err);
