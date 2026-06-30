@@ -77,13 +77,32 @@
 
 .refreshing {
   display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--color-text-muted);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
   margin-left: var(--space-1);
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .5; }
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Visually hidden but accessible to screen readers */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.conversionLive {
+  min-height: 1.4em; /* prevent layout shift when toggling between states */
 }
 
 .select {

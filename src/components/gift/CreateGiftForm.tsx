@@ -288,13 +288,26 @@ export function CreateGiftForm() {
         />
 
         <div className={styles.conversion}>
-          {amountNgn > 0 && (
-            <div className={styles.conversionValue}>
-              ≈ {formatUSDC(usdcEquivalent)}
-              {fetchingRate && <span className={styles.refreshing}>⌛</span>}
-            </div>
-          )}
-          {rateData && (
+          {/* aria-live region announces USDC preview updates to screen readers */}
+          <div aria-live="polite" aria-atomic="true" className={styles.conversionLive}>
+            {amountNgn > 0 && (
+              <div className={styles.conversionValue}>
+                {fetchingRate ? (
+                  <>
+                    <span
+                      className={styles.refreshing}
+                      role="status"
+                      aria-label="Fetching USDC equivalent…"
+                    />
+                    <span className={styles.srOnly}>Calculating USDC equivalent…</span>
+                  </>
+                ) : (
+                  <>≈ {formatUSDC(usdcEquivalent)}</>
+                )}
+              </div>
+            )}
+          </div>
+          {rateData && !fetchingRate && (
             <div className={styles.conversionRate}>
               Rate: {formatNGN(rateData.rate)}/USDC · Last updated {new Date(rateData.lastUpdated).toLocaleTimeString()}
               {rateData.stale && <span className={styles.stale}> · Rate may be outdated</span>}
