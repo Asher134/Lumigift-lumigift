@@ -127,3 +127,5 @@ const STEPS = [
     desc: "At the exact date and time you chose, the gift is revealed and the recipient can claim it.",
   },
 ];
+
+// TODO(#575): lazy-load below-fold sections and preload hero image — tracked in this PR
