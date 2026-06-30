@@ -1,29 +1,17 @@
+/**
+ * Legacy route: GET /api/gifts/group/callback
+ * @deprecated Redirects to /api/v1/gifts/group/callback with HTTP 301.
+ *             Update clients to use /api/v1/gifts/group/callback directly.
+ *             Note: Paystack callback URLs must be updated in the Paystack dashboard.
+ */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyPayment } from "@/lib/paystack";
-import { confirmContribution, failContribution } from "@/server/services/group-gift.service";
-import { withErrorHandler } from "@/server/middleware";
 
-/** Paystack redirects here after a group contribution payment. */
-export const GET = withErrorHandler(async (req: NextRequest) => {
-  const { searchParams } = new URL(req.url);
-  const reference = searchParams.get("ref");
-  const giftId = searchParams.get("giftId");
-
-  if (!reference || !giftId) {
-    return NextResponse.redirect(new URL("/error?code=bad_callback", req.url));
-  }
-
-  const result = await verifyPayment(reference);
-
-  if (result.status === "success") {
-    await confirmContribution(giftId, reference);
-    return NextResponse.redirect(
-      new URL(`/contribute/${giftId}/thank-you`, req.url)
-    );
-  }
-
-  await failContribution(giftId, reference);
-  return NextResponse.redirect(
-    new URL(`/contribute/${giftId}?error=payment_failed`, req.url)
-  );
-});
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  // Preserve all query params (ref, giftId) in the redirect
+  const redirectUrl = new URL("/api/v1/gifts/group/callback", url.origin);
+  url.searchParams.forEach((value, key) => {
+    redirectUrl.searchParams.set(key, value);
+  });
+  return NextResponse.redirect(redirectUrl, { status: 301 });
+}
