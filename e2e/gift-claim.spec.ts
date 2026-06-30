@@ -100,7 +100,33 @@ test("successful claim shows claimed state", async ({ page }) => {
   });
 });
 
-// ─── 4. USDC balance change ───────────────────────────────────────────────────
+// ─── 4. Button disabled during claim (loading state) ─────────────────────────
+test("claim button is disabled and shows loading state after click", async ({ page }) => {
+  await mockGift(page, { status: "unlocked" });
+
+  // Delay the claim response so we can observe the loading state
+  await page.route(`**${CLAIM_API}`, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ success: true, data: { txHash: "abc123txhash" } }),
+    });
+  });
+
+  await page.goto(CLAIM_URL);
+
+  const claimBtn = page.getByRole("button", { name: /claim gift/i });
+  await claimBtn.click();
+
+  // While the mutation is in-flight the button must be disabled and show aria-busy
+  const loadingBtn = page.getByRole("button", { name: /claiming…/i });
+  await expect(loadingBtn).toBeVisible({ timeout: 2_000 });
+  await expect(loadingBtn).toBeDisabled();
+  await expect(loadingBtn).toHaveAttribute("aria-busy", "true");
+});
+
+// ─── 5. USDC balance change ───────────────────────────────────────────────────
 test("USDC balance increases after successful claim", async ({ page }) => {
   const BALANCE_API = `/api/v1/stellar/balance/${RECIPIENT_KEY}`;
   let claimed = false;
