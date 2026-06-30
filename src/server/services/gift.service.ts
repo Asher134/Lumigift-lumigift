@@ -514,3 +514,5 @@ export async function restoreGift(id: string): Promise<Gift | null> {
   gifts.set(id, gift);
   return gift;
 }
+
+// TODO(#576): Replace in-memory Map with PostgreSQL — tracked in this PR
